@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv
+venv/
+
+# Trained model — generated at runtime, not committed
+models/baseline.pkl
+models/test_baseline.pkl
+
+# Pi Camera / audio temp files
+*.wav
+*.jpg
+
+# AWS credentials — never commit these
+.aws/
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
