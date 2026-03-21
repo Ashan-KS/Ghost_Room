@@ -20,11 +20,6 @@ anomaly_queue message:
         "anomaly_score": float,  # 0.0–1.0, normalised score from IsolationForest
         "timestamp":     str,    # ISO format
     }
-
-feature_queue message:
-    numpy.ndarray of shape (14,)
-    [rms, mfcc_0, mfcc_1, ..., mfcc_12]
-    — Rahul writes this, Ginura reads this
 """
 
 import queue
@@ -33,12 +28,14 @@ import queue
 vision_queue  = queue.Queue()   # Sachith  → Ashan
 audio_queue   = queue.Queue()   # Rahul    → Ashan
 anomaly_queue = queue.Queue()   # Ginura   → Ashan
-feature_queue = queue.Queue()   # Rahul    → Ginura
 
 # ── Decision thresholds ───────────────────────────────────────────────────────
 VISION_THRESHOLD  = 0.50   # MobileNet confidence above this → person detected
 VAD_THRESHOLD     = 0.60   # VAD confidence above this → speech detected
 ANOMALY_THRESHOLD = 0.50   # Anomaly score above this → not baseline (real signal)
+ANOMALY_CONTAMINATION = 0.05   # IsolationForest contamination parameter
+ANOMALY_RANDOM_STATE  = 42     # For reproducible model training
+ANOMALY_PERCENTILE     = 5      # Percentile for isolation threshold
 
 # ── State machine ─────────────────────────────────────────────────────────────
 EMPTY_TIMEOUT_SECONDS = 300   # 10 minutes of no signal → flip to EMPTY
@@ -58,7 +55,9 @@ AUDIO_CHUNK_MS    = 30      # ms per VAD frame (10, 20, or 30 only)
 AUDIO_DEVICE_INDEX = None   # None = system default; set to USB mic index on Pi
 VAD_MODE          = 2       # 0=least aggressive, 3=most aggressive
 N_MFCC            = 13      # number of MFCC coefficients to extract
-CALIBRATION_DURATION_MINUTES = 1  # calibration audio duration
+N_FFT_MAX         = 512     # Max FFT window size (clipped to chunk size)
+CALIBRATION_DURATION_S = 60    # seconds of empty-room recording for calibration
+AUDIO_LOG_STATS_INTERVAL_S = 5    # Frequency of audio loop stats logging
 
 
 # ── GPIO pin assignments (Pi only) ────────────────────────────────────────────
@@ -80,4 +79,3 @@ S3_LOG_PREFIX     = "events/"
 # ── Model paths ───────────────────────────────────────────────────────────────
 MOBILENET_MODEL_PATH  = "models/ssd_mobilenet_v2_coco_quant.tflite"
 ANOMALY_MODEL_PATH    = "models/baseline.pkl"   # saved after calibration
-CALIBRATION_DURATION  = 300   # seconds of empty-room recording for calibration

@@ -43,10 +43,13 @@ def extract_features(chunk: bytes) -> np.ndarray:
         rms = np.sqrt(np.mean(samples ** 2))
 
         # 3. MFCCs via librosa
+        #    n_fft must be <= number of samples (480 for 30ms @ 16kHz)
+        n_fft = min(config.N_FFT_MAX, len(samples))
         mfccs = librosa.feature.mfcc(
             y=samples,
             sr=config.AUDIO_SAMPLE_RATE,
             n_mfcc=config.N_MFCC,
+            n_fft=n_fft,
         )
         mfcc_mean = np.mean(mfccs, axis=1)   # shape (13,)
 

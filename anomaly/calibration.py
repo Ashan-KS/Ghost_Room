@@ -22,7 +22,7 @@ import numpy as np
 import config
 from audio.feature_extractor import extract_features, get_zero_vector, FEATURE_DIM
 from audio.vad_processor     import get_audio_chunk
-from Repo.Ghost_Room.anomly.dfhdgh.anomaly_model   import train_and_save
+from anomaly.anomly_model    import train_and_save
 
 log = logging.getLogger(__name__)
 
@@ -34,14 +34,14 @@ def run_calibration():
 
     Blocks until complete. Call this before spawning threads.
     """
-    log.info(f"Calibration: collecting {config.CALIBRATION_DURATION}s of ambient data...")
+    log.info(f"Calibration: collecting {config.CALIBRATION_DURATION_S}s of ambient data...")
     log.info("Make sure the room is EMPTY and quiet during this phase.")
 
     feature_matrix = []
     start_time     = time.time()
     chunk_duration = config.AUDIO_CHUNK_MS / 1000.0
 
-    while (time.time() - start_time) < config.CALIBRATION_DURATION:
+    while (time.time() - start_time) < config.CALIBRATION_DURATION_S:
         try:
             chunk = get_audio_chunk()
             if chunk is not None:
@@ -57,7 +57,7 @@ def run_calibration():
             time.sleep(chunk_duration)
 
         elapsed  = time.time() - start_time
-        progress = int((elapsed / config.CALIBRATION_DURATION) * 100)
+        progress = int((elapsed / config.CALIBRATION_DURATION_S) * 100)
         if len(feature_matrix) % 100 == 0:
             log.info(f"Calibration progress: {progress}% ({len(feature_matrix)} samples)")
 
@@ -67,3 +67,8 @@ def run_calibration():
     # TODO (Ginura): call train_and_save with the collected matrix
     train_and_save(X)
     log.info("Calibration complete — baseline.pkl saved.")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
+    run_calibration()

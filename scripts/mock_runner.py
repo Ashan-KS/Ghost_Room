@@ -152,6 +152,13 @@ if __name__ == "__main__":
     # Prepare threads based on user flags
     threads = []
 
+    log.info("=" * 50)
+    log.info(f"  Vision:  {'REAL (camera)' if args.real_vision else 'MOCK (scenario)'}")
+    log.info(f"  Audio:   {'REAL (mic → VAD + Anomaly)' if args.real_audio else 'MOCK (scenario)'}")
+    log.info(f"  Fusion:  REAL")
+    log.info(f"  Cloud:   REAL")
+    log.info("=" * 50)
+
     # 1. Vision (Real vs Mock)
     if args.real_vision:
         from vision.camera_loop import camera_loop

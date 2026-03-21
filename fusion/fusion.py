@@ -60,7 +60,6 @@ def fusion_loop():
         # ── Anomaly gate ──────────────────────────────────────────────────────
         if anomaly_msg is not None:
             latest_anomaly = anomaly_msg["anomaly_score"] >= config.ANOMALY_THRESHOLD
-            log.debug(f"Anomaly score={anomaly_msg['anomaly_score']:.2f} → {latest_anomaly}")
 
         # ── Fusion ────────────────────────────────────────────────────────────
         # audio and anomaly are combined, then OR'd with vision
@@ -75,7 +74,12 @@ def fusion_loop():
         new_state = IN_USE if time_since_signal < config.EMPTY_TIMEOUT_SECONDS else EMPTY
 
         if new_state != current_state:
-            log.info(f"State change: {current_state} → {new_state}")
+            log.info(
+                f"STATE CHANGE: {current_state} → {new_state}  "
+                f"[vision={'✓' if latest_vision else '✗'}  "
+                f"vad={'✓' if latest_audio else '✗'}  "
+                f"anomaly={'✓' if latest_anomaly else '✗'}]"
+            )
             current_state = new_state
             publish_state(current_state)
 
