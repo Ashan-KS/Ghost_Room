@@ -65,11 +65,15 @@ def get_audio_chunk() -> bytes | None:
     if _stream is None:
         _init_audio_stream()
 
-    # TODO (Rahul): implement audio capture
-    # frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
-    # return _stream.read(frame_samples, exception_on_overflow=False)
+    if _stream is None:
+        return None
 
-    raise NotImplementedError("Rahul: implement get_audio_chunk() in vad_processor.py")
+    try:
+        frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
+        return _stream.read(frame_samples, exception_on_overflow=False)
+    except Exception as e:
+        log.error(f"Error capturing audio chunk: {e}")
+        return None
 
 
 def is_speech(chunk: bytes) -> bool:
@@ -90,7 +94,8 @@ def is_speech(chunk: bytes) -> bool:
     if _vad is None:
         return False
 
-    # TODO (Rahul): implement VAD check
-    # return _vad.is_speech(chunk, config.AUDIO_SAMPLE_RATE)
-
-    raise NotImplementedError("Rahul: implement is_speech() in vad_processor.py")
+    try:
+        return _vad.is_speech(chunk, config.AUDIO_SAMPLE_RATE)
+    except Exception as e:
+        log.error(f"VAD error: {e}")
+        return False
