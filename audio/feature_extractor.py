@@ -33,22 +33,31 @@ def extract_features(chunk: bytes) -> np.ndarray:
     Returns:
         numpy.ndarray shape (14,) float32 — [rms, mfcc_0..mfcc_12]
     """
-    # TODO (Rahul): implement this
-    # Steps:
-    #   1. Convert bytes → numpy int16 array
-    #      samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
-    #   2. RMS energy
-    #      rms = np.sqrt(np.mean(samples ** 2))
-    #   3. MFCCs via librosa
-    #      import librosa
-    #      mfccs = librosa.feature.mfcc(y=samples, sr=config.AUDIO_SAMPLE_RATE,
-    #                                   n_mfcc=config.N_MFCC)
-    #      mfcc_mean = np.mean(mfccs, axis=1)   # shape (13,)
-    #   4. Concatenate
-    #      vector = np.concatenate([[rms], mfcc_mean]).astype(np.float32)
-    #   5. Return vector — shape must be (14,)
+    try:
+        import librosa
 
-    raise NotImplementedError("Rahul: implement extract_features() in feature_extractor.py")
+        # 1. Convert bytes → numpy float32 samples (normalised to [-1, 1])
+        samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+
+        # 2. RMS energy
+        rms = np.sqrt(np.mean(samples ** 2))
+
+        # 3. MFCCs via librosa
+        mfccs = librosa.feature.mfcc(
+            y=samples,
+            sr=config.AUDIO_SAMPLE_RATE,
+            n_mfcc=config.N_MFCC,
+        )
+        mfcc_mean = np.mean(mfccs, axis=1)   # shape (13,)
+
+        # 4. Concatenate into (14,) vector
+        vector = np.concatenate([[rms], mfcc_mean]).astype(np.float32)
+
+        return vector
+
+    except Exception as e:
+        log.error(f"Feature extraction error: {e}")
+        return get_zero_vector()
 
 
 def get_zero_vector() -> np.ndarray:
