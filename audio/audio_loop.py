@@ -16,10 +16,15 @@ import time
 from datetime import datetime, timezone
 
 import numpy as np
-import config
+
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import app_config
 from audio.vad_processor     import is_speech, get_audio_chunk
 from audio.feature_extractor import extract_features
-from anomaly.anomly_model    import get_anomaly_score
+from anomaly.anomaly_model    import get_anomaly_score, train_and_save, is_calibrated
 
 log = logging.getLogger(__name__)
 
@@ -28,9 +33,9 @@ def audio_loop():
     """Main audio thread — runs forever."""
     log.info("Audio loop started.")
     log.info(
-        f"  Sample rate={config.AUDIO_SAMPLE_RATE}Hz  "
-        f"chunk={config.AUDIO_CHUNK_MS}ms  "
-        f"VAD mode={config.VAD_MODE}"
+        f"  Sample rate={app_config.AUDIO_SAMPLE_RATE}Hz  "
+        f"chunk={app_config.AUDIO_CHUNK_MS}ms  "
+        f"VAD mode={app_config.VAD_MODE}"
     )
 
     frame_count = 0
@@ -50,7 +55,7 @@ def audio_loop():
 
             # ── 2. VAD ────────────────────────────────────────────────────
             vad_fired = is_speech(chunk)
-            config.audio_queue.put({
+            app_config.audio_queue.put({
                 "vad_fired": vad_fired,
                 "timestamp": timestamp,
             })
@@ -60,17 +65,24 @@ def audio_loop():
 
             # ── 3. Anomaly ────────────────────────────────────────────────
             feature_vector = extract_features(chunk)
-            anomaly_score = get_anomaly_score(feature_vector)
-            config.anomaly_queue.put({
-                "anomaly_score": float(anomaly_score),
-                "timestamp":     timestamp,
-            })
+            
+            if is_calibrated():
+                anomaly_score = get_anomaly_score(feature_vector)
+                app_config.anomaly_queue.put({
+                    "anomaly_score": float(anomaly_score),
+                    "timestamp":     timestamp,
+                })
+            else:
+                anomaly_score = 0.0
+                # Optionally warn once or periodically
+                if frame_count % 100 == 1:
+                    log.warning("Anomaly model not calibrated — skipping inference.")
 
-            if anomaly_score >= config.ANOMALY_THRESHOLD:
+            if anomaly_score >= app_config.ANOMALY_THRESHOLD:
                 anomaly_count += 1
 
             # ── 4. Periodic stats ───────────────────────────────────────────
-            frames_per_interval = int((config.AUDIO_LOG_STATS_INTERVAL_S * 1000) / config.AUDIO_CHUNK_MS)
+            frames_per_interval = int((app_config.AUDIO_LOG_STATS_INTERVAL_S * 1000) / app_config.AUDIO_CHUNK_MS)
             if frame_count % frames_per_interval == 0:
                 log.info(
                     f"Audio stats ({frame_count} frames): "

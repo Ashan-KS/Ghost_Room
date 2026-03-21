@@ -17,7 +17,7 @@ import logging
 import os
 import sys
 
-from config import ANOMALY_MODEL_PATH
+from app_config import ANOMALY_MODEL_PATH
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,8 +31,8 @@ def main():
     log.info("Workspace Agent starting up...")
 
     # ── Step 1: Calibration ───────────────────────────────────────────────────
-    from anomly.calibration import run_calibration
-    from Repo.Ghost_Room.anomly.dfhdgh.anomaly_model import load_model
+    from anomaly.calibration import run_calibration
+    from anomaly.anomaly_model import load_model
 
     if os.path.exists(ANOMALY_MODEL_PATH):
         log.info(f"Baseline model found at {ANOMALY_MODEL_PATH} — skipping calibration.")

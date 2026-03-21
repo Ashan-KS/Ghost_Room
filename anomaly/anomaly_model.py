@@ -3,7 +3,7 @@ import joblib
 import os
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
-import config
+import app_config
 import librosa
 
 _model = None
@@ -13,7 +13,7 @@ _stat_std = None
 _stat_threshold = None
 _iso_threshold = None
 
-def _extract_features(audio: np.ndarray, sr: int = config.AUDIO_SAMPLE_RATE) -> np.ndarray:
+def _extract_features(audio: np.ndarray, sr: int = app_config.AUDIO_SAMPLE_RATE) -> np.ndarray:
     """
     Extract features from audio vector: 13 MFCC means, 13 MFCC stds, energy, ZCR.
     Returns vector of shape (28,).
@@ -42,10 +42,10 @@ def train_and_save(X: np.ndarray):
     X_scaled = _scaler.fit_transform(X)
 
     # IsolationForest
-    _model = IsolationForest(contamination=config.ANOMALY_CONTAMINATION, random_state=config.ANOMALY_RANDOM_STATE)
+    _model = IsolationForest(contamination=app_config.ANOMALY_CONTAMINATION, random_state=app_config.ANOMALY_RANDOM_STATE)
     _model.fit(X_scaled)
     scores = _model.decision_function(X_scaled)
-    _iso_threshold = np.percentile(scores, config.ANOMALY_PERCENTILE)
+    _iso_threshold = np.percentile(scores, app_config.ANOMALY_PERCENTILE)
 
     # Save everything needed for inference
     save_data = {
@@ -56,18 +56,22 @@ def train_and_save(X: np.ndarray):
         "stat_threshold": _stat_threshold,
         "iso_threshold": _iso_threshold
     }
-    os.makedirs(os.path.dirname(config.ANOMALY_MODEL_PATH), exist_ok=True)
-    joblib.dump(save_data, config.ANOMALY_MODEL_PATH)
+    os.makedirs(os.path.dirname(app_config.ANOMALY_MODEL_PATH), exist_ok=True)
+    joblib.dump(save_data, app_config.ANOMALY_MODEL_PATH)
 
 def load_model():
     global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold
-    data = joblib.load(config.ANOMALY_MODEL_PATH)
+    data = joblib.load(app_config.ANOMALY_MODEL_PATH)
     _model        = data["isoforest"]
     _scaler       = data["scaler"]
     _stat_mean    = data["stat_mean"]
     _stat_std     = data["stat_std"]
     _stat_threshold = data["stat_threshold"]
     _iso_threshold  = data["iso_threshold"]
+
+def is_calibrated() -> bool:
+    """Check if the base model exists on disk."""
+    return os.path.exists(app_config.ANOMALY_MODEL_PATH)
 
 def get_anomaly_score(vec: np.ndarray) -> float:
     global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold

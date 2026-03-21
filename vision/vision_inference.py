@@ -4,7 +4,7 @@ vision/vision_inference.py — SACHITH
 Loads the quantized MobileNet SSD model and runs person detection.
 
 Your tasks:
-  1. Load the .tflite model from config.MOBILENET_MODEL_PATH
+  1. Load the .tflite model from app_config.MOBILENET_MODEL_PATH
   2. Implement run_inference() — returns a float confidence score 0.0–1.0
   3. Return 0.0 if no person detected, highest person confidence if detected
 
@@ -15,7 +15,7 @@ Download the model weights:
 
 import logging
 import numpy as np
-import config
+import app_config
 from vision.frame_utils import preprocess_frame
 
 log = logging.getLogger(__name__)
@@ -28,9 +28,9 @@ def _load_model():
     global _interpreter
     try:
         import tflite_runtime.interpreter as tflite
-        _interpreter = tflite.Interpreter(model_path=config.MOBILENET_MODEL_PATH)
+        _interpreter = tflite.Interpreter(model_path=app_config.MOBILENET_MODEL_PATH)
         _interpreter.allocate_tensors()
-        log.info(f"MobileNet SSD loaded from {config.MOBILENET_MODEL_PATH}")
+        log.info(f"MobileNet SSD loaded from {app_config.MOBILENET_MODEL_PATH}")
     except ImportError:
         log.warning("tflite_runtime not found — using stub inference (returns 0.0).")
     except Exception as e:

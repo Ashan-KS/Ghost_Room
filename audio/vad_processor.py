@@ -13,7 +13,7 @@ Install: pip install webrtcvad pyaudio
 
 import logging
 import numpy as np
-import config
+import app_config
 
 log = logging.getLogger(__name__)
 
@@ -27,8 +27,8 @@ def _init_vad():
     global _vad
     try:
         import webrtcvad
-        _vad = webrtcvad.Vad(config.VAD_MODE)
-        log.info(f"WebRTC VAD initialised (mode={config.VAD_MODE})")
+        _vad = webrtcvad.Vad(app_config.VAD_MODE)
+        log.info(f"WebRTC VAD initialised (mode={app_config.VAD_MODE})")
     except ImportError:
         log.warning("webrtcvad not installed — is_speech() will always return False.")
 
@@ -39,13 +39,13 @@ def _init_audio_stream():
     try:
         import pyaudio
         _pyaudio = pyaudio.PyAudio()
-        frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
+        frame_samples = int(app_config.AUDIO_SAMPLE_RATE * app_config.AUDIO_CHUNK_MS / 1000)
         _stream = _pyaudio.open(
             format=pyaudio.paInt16,
             channels=1,
-            rate=config.AUDIO_SAMPLE_RATE,
+            rate=app_config.AUDIO_SAMPLE_RATE,
             input=True,
-            input_device_index=config.AUDIO_DEVICE_INDEX,
+            input_device_index=app_config.AUDIO_DEVICE_INDEX,
             frames_per_buffer=frame_samples,
         )
         log.info("Audio stream opened.")
@@ -69,7 +69,7 @@ def get_audio_chunk() -> bytes | None:
         return None
 
     try:
-        frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
+        frame_samples = int(app_config.AUDIO_SAMPLE_RATE * app_config.AUDIO_CHUNK_MS / 1000)
         return _stream.read(frame_samples, exception_on_overflow=False)
     except Exception as e:
         log.error(f"Error capturing audio chunk: {e}")
@@ -95,7 +95,7 @@ def is_speech(chunk: bytes) -> bool:
         return False
 
     try:
-        return _vad.is_speech(chunk, config.AUDIO_SAMPLE_RATE)
+        return _vad.is_speech(chunk, app_config.AUDIO_SAMPLE_RATE)
     except Exception as e:
         log.error(f"VAD error: {e}")
         return False

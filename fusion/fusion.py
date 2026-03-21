@@ -16,8 +16,13 @@ import logging
 import time
 from datetime import datetime, timezone
 
-import config
 from cloud.cloud_publisher import publish_state
+
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import app_config
 
 log = logging.getLogger(__name__)
 
@@ -43,13 +48,13 @@ def fusion_loop():
         now = time.time()
 
         # Drain all queues — take the latest reading from each
-        vision_msg  = _drain_queue(config.vision_queue)
-        audio_msg   = _drain_queue(config.audio_queue)
-        anomaly_msg = _drain_queue(config.anomaly_queue)
+        vision_msg  = _drain_queue(app_config.vision_queue)
+        audio_msg   = _drain_queue(app_config.audio_queue)
+        anomaly_msg = _drain_queue(app_config.anomaly_queue)
 
         # ── Vision gate ───────────────────────────────────────────────────────
         if vision_msg is not None:
-            latest_vision = vision_msg["confidence"] >= config.VISION_THRESHOLD
+            latest_vision = vision_msg["confidence"] >= app_config.VISION_THRESHOLD
             log.debug(f"Vision conf={vision_msg['confidence']:.2f} → {latest_vision}")
 
         # ── Audio gate (VAD) ──────────────────────────────────────────────────
@@ -59,7 +64,7 @@ def fusion_loop():
 
         # ── Anomaly gate ──────────────────────────────────────────────────────
         if anomaly_msg is not None:
-            latest_anomaly = anomaly_msg["anomaly_score"] >= config.ANOMALY_THRESHOLD
+            latest_anomaly = anomaly_msg["anomaly_score"] >= app_config.ANOMALY_THRESHOLD
 
         # ── Fusion ────────────────────────────────────────────────────────────
         # audio and anomaly are combined, then OR'd with vision
@@ -71,7 +76,7 @@ def fusion_loop():
 
         # ── State machine ─────────────────────────────────────────────────────
         time_since_signal = now - last_signal_time if last_signal_time > 0 else float("inf")
-        new_state = IN_USE if time_since_signal < config.EMPTY_TIMEOUT_SECONDS else EMPTY
+        new_state = IN_USE if time_since_signal < app_config.EMPTY_TIMEOUT_SECONDS else EMPTY
 
         if new_state != current_state:
             log.info(

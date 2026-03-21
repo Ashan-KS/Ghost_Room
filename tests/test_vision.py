@@ -42,14 +42,14 @@ def test_run_inference_returns_float():
 
 def test_vision_queue_message_shape():
     """Simulate one camera loop tick and check queue message contract."""
-    import config
+    import app_config
     from datetime import datetime, timezone
     from vision.vision_inference import run_inference
     from vision.frame_utils import get_camera_frame, preprocess_frame
 
     # Clear queue
-    while not config.vision_queue.empty():
-        config.vision_queue.get_nowait()
+    while not app_config.vision_queue.empty():
+        app_config.vision_queue.get_nowait()
 
     frame = get_camera_frame()
     assert frame is not None, "Camera returned None — is your webcam connected?"
@@ -59,9 +59,9 @@ def test_vision_queue_message_shape():
         "confidence": confidence,
         "timestamp":  datetime.now(timezone.utc).isoformat(),
     }
-    config.vision_queue.put(message)
+    app_config.vision_queue.put(message)
 
-    result = config.vision_queue.get_nowait()
+    result = app_config.vision_queue.get_nowait()
     assert "confidence" in result, "Message missing 'confidence' key"
     assert "timestamp"  in result, "Message missing 'timestamp' key"
     assert isinstance(result["confidence"], float)

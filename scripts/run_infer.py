@@ -4,15 +4,21 @@ import queue
 import threading
 import time
 from datetime import datetime
-from anomly import anomly_model
-import config
+import sys
+import os
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from anomaly import anomaly_model
+import app_config
 
 def listen_and_detect(anomaly_queue: queue.Queue, stop_event: threading.Event):
-    fs = config.AUDIO_SAMPLE_RATE
-    chunk_len = config.AUDIO_CHUNK_MS * fs
+    fs = app_config.AUDIO_SAMPLE_RATE
+    chunk_len = app_config.AUDIO_CHUNK_MS * fs
     print("Real-time anomaly detection started. (CTRL+C to stop)")
 
-    anomly_model.load_model()
+    anomaly_model.load_model()
 
     try:
         while not stop_event.is_set():
@@ -24,8 +30,8 @@ def listen_and_detect(anomaly_queue: queue.Queue, stop_event: threading.Event):
             if np.max(np.abs(audio)) > 0:
                 audio = audio / np.max(np.abs(audio))
 
-            feat = anomly_model._extract_features(audio)
-            anomaly_score = anomly_model.get_anomaly_score(feat)
+            feat = anomaly_model._extract_features(audio)
+            anomaly_score = anomaly_model.get_anomaly_score(feat)
             ts = datetime.now().isoformat(timespec="seconds")
 
             anomaly_queue.put({

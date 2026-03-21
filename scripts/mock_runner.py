@@ -29,9 +29,9 @@ log = logging.getLogger(__name__)
 import sys
 import os
 
-# Ensure project root is in path so 'config', 'fusion', 'cloud' resolve correctly
+# Ensure project root is in path so 'app_config', 'fusion', 'cloud' resolve correctly
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import config
+import app_config
 
 # ── Scenario definitions ──────────────────────────────────────────────────────
 SCENARIOS = {
@@ -66,7 +66,7 @@ def fake_vision_producer(scenario: dict):
     """Mimics Sachith's camera_loop."""
     log.info(f"[MOCK] Vision producing confidence={scenario['vision_confidence']}")
     while True:
-        config.vision_queue.put({
+        app_config.vision_queue.put({
             "confidence": scenario["vision_confidence"],
             "timestamp":  datetime.now(timezone.utc).isoformat(),
         })
@@ -78,11 +78,11 @@ def fake_audio_producer(scenario: dict):
     log.info(f"[MOCK] Audio producing vad={scenario['vad_fired']} anom={scenario['anomaly_score']}")
     while True:
         timestamp = datetime.now(timezone.utc).isoformat()
-        config.audio_queue.put({
+        app_config.audio_queue.put({
             "vad_fired": scenario["vad_fired"],
             "timestamp": timestamp,
         })
-        config.anomaly_queue.put({
+        app_config.anomaly_queue.put({
             "anomaly_score": scenario["anomaly_score"],
             "timestamp":     timestamp,
         })
@@ -98,15 +98,15 @@ def print_state_loop():
     latest_anomaly = False
     
     while True:
-        while not config.vision_queue.empty():
-            v = config.vision_queue.get_nowait()
-            latest_vision = v["confidence"] >= config.VISION_THRESHOLD
-        while not config.audio_queue.empty():
-            a = config.audio_queue.get_nowait()
+        while not app_config.vision_queue.empty():
+            v = app_config.vision_queue.get_nowait()
+            latest_vision = v["confidence"] >= app_config.VISION_THRESHOLD
+        while not app_config.audio_queue.empty():
+            a = app_config.audio_queue.get_nowait()
             latest_audio = a["vad_fired"]
-        while not config.anomaly_queue.empty():
-            m = config.anomaly_queue.get_nowait()
-            latest_anomaly = m["anomaly_score"] >= config.ANOMALY_THRESHOLD
+        while not app_config.anomaly_queue.empty():
+            m = app_config.anomaly_queue.get_nowait()
+            latest_anomaly = m["anomaly_score"] >= app_config.ANOMALY_THRESHOLD
 
         combined_audio = latest_audio and latest_anomaly
         in_use         = latest_vision or combined_audio
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     parser.add_argument("--room",        default="A",         help="Room ID to simulate")
     args = parser.parse_args()
     
-    config.ROOM_ID = args.room
+    app_config.ROOM_ID = args.room
     scenario = SCENARIOS[args.scenario]
     
     log.info(f"Running scenario: '{args.scenario}' for Room '{args.room}'")
@@ -142,8 +142,8 @@ if __name__ == "__main__":
         log.warning("--------------------------")
 
     # Override the 10-minute timeout for quick local testing (flips to EMPTY in 5s)
-    config.EMPTY_TIMEOUT_SECONDS = 5
-    log.info("Overrode config.EMPTY_TIMEOUT_SECONDS to 5 for fast testing.")
+    app_config.EMPTY_TIMEOUT_SECONDS = 5
+    log.info("Overrode app_config.EMPTY_TIMEOUT_SECONDS to 5 for fast testing.")
 
     # Import the actual real logic (Ashan's fusion and cloud publisher)
     from fusion.fusion import fusion_loop

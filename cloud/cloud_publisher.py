@@ -11,7 +11,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-import config
+import app_config
 
 log = logging.getLogger(__name__)
 
@@ -29,8 +29,8 @@ def _get_client():
 
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
-                log.info(f"MQTT connected to {config.MQTT_BROKER_HOST}")
-                client.subscribe(config.MQTT_TOPIC_CMD)
+                log.info(f"MQTT connected to {app_config.MQTT_BROKER_HOST}")
+                client.subscribe(app_config.MQTT_TOPIC_CMD)
             else:
                 log.error(f"MQTT connection failed with code {rc}")
 
@@ -42,7 +42,7 @@ def _get_client():
         _client = mqtt.Client()
         _client.on_connect = on_connect
         _client.on_message = on_message
-        _client.connect(config.MQTT_BROKER_HOST, config.MQTT_BROKER_PORT, keepalive=60)
+        _client.connect(app_config.MQTT_BROKER_HOST, app_config.MQTT_BROKER_PORT, keepalive=60)
         _client.loop_start()
 
     except Exception as e:
@@ -59,14 +59,14 @@ def publish_state(state: str):
         state: "IN_USE" or "EMPTY"
     """
     payload = json.dumps({
-        "room":      config.ROOM_ID,
+        "room":      app_config.ROOM_ID,
         "status":    state,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
 
     client = _get_client()
     if client:
-        client.publish(config.MQTT_TOPIC_STATUS, payload)
+        client.publish(app_config.MQTT_TOPIC_STATUS, payload)
         log.info(f"Published: {payload}")
     else:
         log.warning(f"No MQTT client — state not published: {state}")

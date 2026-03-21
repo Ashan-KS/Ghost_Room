@@ -16,11 +16,15 @@ Install: pip install librosa numpy
 
 import logging
 import numpy as np
-import config
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import app_config
 
 log = logging.getLogger(__name__)
 
-FEATURE_DIM = 1 + config.N_MFCC   # 14 total: 1 RMS + 13 MFCCs
+FEATURE_DIM = 1 + app_config.N_MFCC   # 14 total: 1 RMS + 13 MFCCs
 
 
 def extract_features(chunk: bytes) -> np.ndarray:
@@ -44,11 +48,11 @@ def extract_features(chunk: bytes) -> np.ndarray:
 
         # 3. MFCCs via librosa
         #    n_fft must be <= number of samples (480 for 30ms @ 16kHz)
-        n_fft = min(config.N_FFT_MAX, len(samples))
+        n_fft = min(app_config.N_FFT_MAX, len(samples))
         mfccs = librosa.feature.mfcc(
             y=samples,
-            sr=config.AUDIO_SAMPLE_RATE,
-            n_mfcc=config.N_MFCC,
+            sr=app_config.AUDIO_SAMPLE_RATE,
+            n_mfcc=app_config.N_MFCC,
             n_fft=n_fft,
         )
         mfcc_mean = np.mean(mfccs, axis=1)   # shape (13,)

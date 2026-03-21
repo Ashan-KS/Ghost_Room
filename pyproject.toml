@@ -9,7 +9,6 @@ dependencies = [
     "pandas>=2.3.3",
     "streamlit>=1.55.0",
     "streamlit-autorefresh>=1.0.1",
-    "webrtcvad>=2.0.10",
     "webrtcvad-wheels>=2.0.10",
     "numpy>=1.24",
     "scikit-learn>=1.3",

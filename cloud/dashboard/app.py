@@ -14,7 +14,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 
 from database import init_db, add_booking, get_bookings, delete_booking
 from mqtt_subscriber import start_mqtt, get_current_state
-import config
+import app_config
 
 # ==========================================================
 # Initialize Background Systems (Run Once)
@@ -214,8 +214,8 @@ elif page == "History":
     @st.cache_data(ttl=300)
     def fetch_s3_history(force_demo=False):
         """Fetches and parses JSON logs from the S3 bucket or returns mock data."""
-        # Use demo mode if the toggle is ON OR if S3 is disabled in the global config
-        use_mock = force_demo or not getattr(config, 'ENABLE_S3_LOGGING', True)
+        # Use demo mode if the toggle is ON OR if S3 is disabled in the global app_config
+        use_mock = force_demo or not getattr(app_config, 'ENABLE_S3_LOGGING', True)
         
         if use_mock:
             # Generate 30 mock events for a "full day" visualization
@@ -247,9 +247,9 @@ elif page == "History":
 
         try:
             s3 = boto3.client('s3')
-            # Extract bucket/prefix from config
-            bucket = config.S3_BUCKET_NAME
-            prefix = config.S3_LOG_PREFIX
+            # Extract bucket/prefix from app_config
+            bucket = app_config.S3_BUCKET_NAME
+            prefix = app_config.S3_LOG_PREFIX
             
             response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
             if 'Contents' not in response:

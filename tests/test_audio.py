@@ -14,10 +14,10 @@ import sys
 import os
 import numpy as np
 
-# Ensure project root is on sys.path so `config` can be imported
+# Ensure project root is on sys.path so `app_config` can be imported
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import config
+import app_config
 
 
 def test_vad():
@@ -25,22 +25,22 @@ def test_vad():
     print("\n=== Test 1: WebRTC VAD ===")
     try:
         import webrtcvad
-        vad = webrtcvad.Vad(config.VAD_MODE)
-        print(f"  [OK] VAD initialised (mode={config.VAD_MODE})")
+        vad = webrtcvad.Vad(app_config.VAD_MODE)
+        print(f"  [OK] VAD initialised (mode={app_config.VAD_MODE})")
     except ImportError:
         print("  [FAIL] webrtcvad is not installed. Run: pip install webrtcvad")
         return False
 
     # Create a silent 30ms frame (all zeros) at 16 kHz, 16-bit PCM
-    frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
+    frame_samples = int(app_config.AUDIO_SAMPLE_RATE * app_config.AUDIO_CHUNK_MS / 1000)
     silent_frame = np.zeros(frame_samples, dtype=np.int16).tobytes()
 
-    result = vad.is_speech(silent_frame, config.AUDIO_SAMPLE_RATE)
+    result = vad.is_speech(silent_frame, app_config.AUDIO_SAMPLE_RATE)
     print(f"  [OK] VAD on silent frame → is_speech={result} (expected False)")
 
     # Create a noisy frame (random data simulating speech-like energy)
     noisy_frame = (np.random.normal(0, 5000, frame_samples)).astype(np.int16).tobytes()
-    result2 = vad.is_speech(noisy_frame, config.AUDIO_SAMPLE_RATE)
+    result2 = vad.is_speech(noisy_frame, app_config.AUDIO_SAMPLE_RATE)
     print(f"  [OK] VAD on noisy frame  → is_speech={result2}")
 
     return True
@@ -56,7 +56,7 @@ def test_feature_extraction():
         return False
 
     # Create a synthetic 30ms PCM chunk
-    frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
+    frame_samples = int(app_config.AUDIO_SAMPLE_RATE * app_config.AUDIO_CHUNK_MS / 1000)
     chunk = (np.random.normal(0, 3000, frame_samples)).astype(np.int16).tobytes()
 
     vector = extract_features(chunk)
@@ -83,7 +83,7 @@ def test_vad_processor():
         print(f"  [FAIL] Import error: {e}")
         return False
 
-    frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
+    frame_samples = int(app_config.AUDIO_SAMPLE_RATE * app_config.AUDIO_CHUNK_MS / 1000)
 
     # Silent frame
     silent = np.zeros(frame_samples, dtype=np.int16).tobytes()
@@ -112,20 +112,20 @@ def test_live_mic(duration_seconds=10):
         from audio.feature_extractor import extract_features
 
         pa = pyaudio.PyAudio()
-        frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
+        frame_samples = int(app_config.AUDIO_SAMPLE_RATE * app_config.AUDIO_CHUNK_MS / 1000)
 
         stream = pa.open(
             format=pyaudio.paInt16,
             channels=1,
-            rate=config.AUDIO_SAMPLE_RATE,
+            rate=app_config.AUDIO_SAMPLE_RATE,
             input=True,
-            input_device_index=config.AUDIO_DEVICE_INDEX,
+            input_device_index=app_config.AUDIO_DEVICE_INDEX,
             frames_per_buffer=frame_samples,
         )
-        print(f"  [OK] Audio stream opened (rate={config.AUDIO_SAMPLE_RATE}, chunk={config.AUDIO_CHUNK_MS}ms)")
+        print(f"  [OK] Audio stream opened (rate={app_config.AUDIO_SAMPLE_RATE}, chunk={app_config.AUDIO_CHUNK_MS}ms)")
         print(f"  Recording for {duration_seconds} seconds... Speak into the mic!")
 
-        total_frames = int(config.AUDIO_SAMPLE_RATE / frame_samples * duration_seconds)
+        total_frames = int(app_config.AUDIO_SAMPLE_RATE / frame_samples * duration_seconds)
         speech_count = 0
         silence_count = 0
 
@@ -165,18 +165,18 @@ def test_audio_queue_contract():
     from datetime import datetime, timezone
     
     # Clear queue
-    while not config.audio_queue.empty():
-        config.audio_queue.get_nowait()
+    while not app_config.audio_queue.empty():
+        app_config.audio_queue.get_nowait()
 
     # Simulate a VAD result
     message = {
         "vad_fired": True,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    config.audio_queue.put(message)
+    app_config.audio_queue.put(message)
 
     # Read it back
-    res = config.audio_queue.get_nowait()
+    res = app_config.audio_queue.get_nowait()
     print(f"  Message: {res}")
     
     if "vad_fired" in res and "timestamp" in res and isinstance(res["vad_fired"], bool):

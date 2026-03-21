@@ -9,15 +9,15 @@ import boto3
 
 import database
 
-# Ensure config can be loaded if run from the project root or app boundary
+# Ensure app_config can be loaded if run from the project root or app boundary
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 try:
-    import config
-    MQTT_BROKER_HOST = config.MQTT_BROKER_HOST
-    MQTT_BROKER_PORT = config.MQTT_BROKER_PORT
-    MQTT_TOPIC_STATUS = config.MQTT_TOPIC_STATUS
+    import app_config
+    MQTT_BROKER_HOST = app_config.MQTT_BROKER_HOST
+    MQTT_BROKER_PORT = app_config.MQTT_BROKER_PORT
+    MQTT_TOPIC_STATUS = app_config.MQTT_TOPIC_STATUS
 except ImportError:
-    # Fallbacks if config.py is not available directly
+    # Fallbacks if app_config.py is not available directly
     MQTT_BROKER_HOST = "localhost"
     MQTT_BROKER_PORT = 1883
     MQTT_TOPIC_STATUS = "room/A/status"
@@ -42,7 +42,7 @@ def on_connect(client, userdata, flags, rc):
 
 def _log_event_to_s3(room_id, status, timestamp):
     """Logs state transitions and ghost detections to S3."""
-    if not getattr(config, 'ENABLE_S3_LOGGING', True):
+    if not getattr(app_config, 'ENABLE_S3_LOGGING', True):
         return
         
     try:
@@ -73,8 +73,8 @@ def _log_event_to_s3(room_id, status, timestamp):
 
         # 3. Upload to S3
         s3 = boto3.client('s3')
-        bucket = getattr(config, 'S3_BUCKET_NAME', 'workspace-agent-logs')
-        prefix = getattr(config, 'S3_LOG_PREFIX', 'events/')
+        bucket = getattr(app_config, 'S3_BUCKET_NAME', 'workspace-agent-logs')
+        prefix = getattr(app_config, 'S3_LOG_PREFIX', 'events/')
         
         utc_now = datetime.now(timezone.utc)
         suffix = "_ghost" if ghost_meeting else "_state"

@@ -1,13 +1,19 @@
 import sounddevice as sd
 import numpy as np
 from scipy.io.wavfile import write
-import config
-from anomly import anomly_model
+import sys
+import os
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import app_config
+from anomaly import anomaly_model
 
 def record_baseline():
-    fs = config.AUDIO_SAMPLE_RATE
-    seconds = config.CALIBRATION_DURATION_MINUTES * 60
-    print(f"Recording {config.CALIBRATION_DURATION_MINUTES} minutes of audio for calibration...")
+    fs = app_config.AUDIO_SAMPLE_RATE
+    seconds = app_config.CALIBRATION_DURATION_MINUTES * 60
+    print(f"Recording {app_config.CALIBRATION_DURATION_MINUTES} minutes of audio for calibration...")
     audio = sd.rec(int(seconds * fs), samplerate=fs, channels=1)
     sd.wait()
     audio = audio.flatten()
@@ -18,16 +24,16 @@ def record_baseline():
 def main():
     audio = record_baseline()
     # Break into chunks and extract features
-    chunk_len = config.AUDIO_CHUNK_MS * config.AUDIO_SAMPLE_RATE
+    chunk_len = app_config.AUDIO_CHUNK_MS * app_config.AUDIO_SAMPLE_RATE
     chunks = [
         audio[i:i + chunk_len]
         for i in range(0, len(audio), chunk_len)
         if len(audio[i:i + chunk_len]) == chunk_len
     ]
-    X = np.array([anomly_model._extract_features(c) for c in chunks])
+    X = np.array([anomaly_model._extract_features(c) for c in chunks])
     print(f"Extracted {len(X)} feature vectors of shape {X.shape[1:]}")
-    anomly_model.train_and_save(X)
-    print(f"Model calibrated and saved to {config.ANOMALY_MODEL_PATH}")
+    anomaly_model.train_and_save(X)
+    print(f"Model calibrated and saved to {app_config.ANOMALY_MODEL_PATH}")
 
 if __name__ == "__main__":
     main()

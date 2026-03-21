@@ -3,14 +3,14 @@ vision/frame_utils.py — SACHITH
 =================================
 Camera capture and frame preprocessing utilities.
 
-Hardware abstraction lives here — swap USE_PI_HARDWARE flag in config.py,
+Hardware abstraction lives here — swap USE_PI_HARDWARE flag in app_config.py,
 everything else stays identical.
 """
 
 import logging
 import numpy as np
 import cv2
-import config
+import app_config
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ def get_camera_frame():
     """
     global _cap
 
-    if config.USE_PI_HARDWARE:
+    if app_config.USE_PI_HARDWARE:
         # TODO (Sachith): implement Pi Camera capture using picamera2
         # from picamera2 import Picamera2
         # ...
@@ -34,7 +34,7 @@ def get_camera_frame():
     else:
         # Laptop webcam
         if _cap is None or not _cap.isOpened():
-            _cap = cv2.VideoCapture(config.CAMERA_INDEX)
+            _cap = cv2.VideoCapture(app_config.CAMERA_INDEX)
             if not _cap.isOpened():
                 log.error("Could not open webcam.")
                 return None
@@ -53,7 +53,7 @@ def preprocess_frame(frame) -> np.ndarray:
     Returns:
         numpy array (1, 300, 300, 3) uint8, RGB channel order
     """
-    resized = cv2.resize(frame, config.FRAME_SIZE)
+    resized = cv2.resize(frame, app_config.FRAME_SIZE)
     rgb     = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
     return np.expand_dims(rgb, axis=0).astype(np.uint8)
 

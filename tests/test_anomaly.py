@@ -17,7 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import config
+import app_config
 
 TEST_MODEL_PATH = "models/test_baseline.pkl"
 
@@ -36,28 +36,28 @@ def _make_noisy_vector() -> np.ndarray:
 @pytest.fixture(autouse=True)
 def patch_model_path(monkeypatch):
     """Use a test model path so we don't overwrite the real baseline."""
-    monkeypatch.setattr(config, "ANOMALY_MODEL_PATH", TEST_MODEL_PATH)
+    monkeypatch.setattr(app_config, "ANOMALY_MODEL_PATH", TEST_MODEL_PATH)
     yield
     if os.path.exists(TEST_MODEL_PATH):
         os.remove(TEST_MODEL_PATH)
 
 
 def test_train_and_save_creates_file():
-    from anomly.anomly_model import train_and_save
+    from anomaly.anomaly_model import train_and_save
     X = _make_baseline_data()
     train_and_save(X)
     assert os.path.exists(TEST_MODEL_PATH), "baseline.pkl was not created"
 
 
 def test_load_model_no_error():
-    from anomly.anomly_model import train_and_save, load_model
+    from anomaly.anomaly_model import train_and_save, load_model
     X = _make_baseline_data()
     train_and_save(X)
     load_model()   # should not raise
 
 
 def test_get_anomaly_score_range():
-    from anomly.anomly_model import train_and_save, load_model, get_anomaly_score
+    from anomaly.anomaly_model import train_and_save, load_model, get_anomaly_score
     X = _make_baseline_data()
     train_and_save(X)
     load_model()
@@ -73,7 +73,7 @@ def test_noisy_scores_higher_than_baseline():
     Core sanity check: vectors unlike the training data should score higher
     than vectors similar to training data.
     """
-    from anomly.anomly_model import train_and_save, load_model, get_anomaly_score
+    from anomaly.anomaly_model import train_and_save, load_model, get_anomaly_score
     X = _make_baseline_data(n=300)
     train_and_save(X)
     load_model()
