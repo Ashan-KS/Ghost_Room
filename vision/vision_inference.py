@@ -1,60 +1,118 @@
 """
-vision/vision_inference.py — SACHITH
-======================================
-Loads the quantized MobileNet SSD model and runs person detection.
+vision/vision_inference.py
+===========================
+Public API surface for the vision subsystem.
 
-Your tasks:
-  1. Load the .tflite model from config.MOBILENET_MODEL_PATH
-  2. Implement run_inference() — returns a float confidence score 0.0–1.0
-  3. Return 0.0 if no person detected, highest person confidence if detected
+This module keeps the original interface (run_inference, _load_model)
+intact so camera_loop.py and any external callers don't change.
+Internally it delegates to the backend selected in config.MODEL_BACKEND.
 
-Download the model weights:
-  wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip
-  unzip it and place the .tflite file at models/ssd_mobilenet_v2_coco_quant.tflite
+Supported backends (set MODEL_BACKEND in config.py):
+    "mobilenet"  →  MobileNetDetector (TFLite quantized SSD)
+    "yolo"       →  YoloDetector      (ultralytics or ONNX Runtime)
+
+To add a new backend:
+    1. Subclass BaseDetector in vision/your_detector.py
+    2. Add an elif branch in _get_detector() below
+    3. Change MODEL_BACKEND and MODEL_PATH in config.py
+    No other files need to change.
 """
 
 import logging
+from typing import Optional
 import numpy as np
 import config
-from vision.frame_utils import preprocess_frame
+from vision.base_detector import BaseDetector
 
 log = logging.getLogger(__name__)
 
-_interpreter = None   # loaded once, reused
+# Module-level detector instance — loaded once, reused every frame.
+_detector: Optional[BaseDetector] = None
 
 
-def _load_model():
-    """Load TFLite model. Called once on first inference."""
-    global _interpreter
-    try:
-        import tflite_runtime.interpreter as tflite
-        _interpreter = tflite.Interpreter(model_path=config.MOBILENET_MODEL_PATH)
-        _interpreter.allocate_tensors()
-        log.info(f"MobileNet SSD loaded from {config.MOBILENET_MODEL_PATH}")
-    except ImportError:
-        log.warning("tflite_runtime not found — using stub inference (returns 0.0).")
-    except Exception as e:
-        log.error(f"Failed to load model: {e}")
+# ── Backend registry ───────────────────────────────────────────────────────────
+
+def _get_detector() -> BaseDetector:
+    """
+    Instantiate (but don't load) the detector for config.MODEL_BACKEND.
+    Add new backends here.
+    """
+    backend = config.MODEL_BACKEND
+
+    if backend == "mobilenet":
+        from vision.mobilenet_detector import MobileNetDetector
+        return MobileNetDetector(config)
+
+    elif backend == "yolo":
+        from vision.yolo_detector import YoloDetector
+        return YoloDetector(config)
+
+    else:
+        raise ValueError(
+            f"Unknown MODEL_BACKEND: {backend!r}. "
+            "Valid options: 'mobilenet', 'yolo'."
+        )
 
 
-def run_inference(frame) -> float:
+# ── Original public API (unchanged contract) ───────────────────────────────────
+
+def _load_model() -> None:
+    """
+    Load the model backend selected in config.py.
+    Called automatically on first run_inference(); can also be called
+    explicitly at startup to pay the load cost up-front.
+    """
+    global _detector
+    _detector = _get_detector()
+    _detector.load()
+    log.info(f"Detector loaded: {_detector}")
+
+
+def run_inference(frame: np.ndarray) -> float:
     """
     Run person detection on a single frame.
 
     Args:
-        frame: numpy array (H, W, 3) BGR image from OpenCV
+        frame: numpy array (H, W, 3) BGR image from OpenCV.
 
     Returns:
-        float: highest person confidence score (0.0–1.0).
-                0.0 means no person detected above threshold.
+        float in [0.0, 1.0].
+        0.0 = no person detected above config.VISION_THRESHOLD.
+        >0.0 = highest person confidence found in this frame.
     """
-    # TODO (Sachith): implement this
-    # Steps:
-    #   1. preprocess_frame(frame) → (1, 300, 300, 3) tensor
-    #   2. set_tensor on interpreter input
-    #   3. invoke()
-    #   4. get_tensor on output — boxes, classes, scores, count
-    #   5. filter scores where class == 0 (person in COCO)
-    #   6. return max person score, or 0.0 if none
+    global _detector
 
-    raise NotImplementedError("Sachith: implement run_inference() in vision_inference.py")
+    # Lazy-load on first call
+    if _detector is None:
+        _load_model()
+
+    try:
+        return _detector.run_inference(frame)
+    except Exception as exc:
+        log.error(f"Inference error: {exc}")
+        return 0.0
+
+
+def get_detections(frame: np.ndarray) -> list[dict]:
+    """
+    Extended helper — returns all person detections as structured dicts.
+
+    Returns:
+        list of {
+            "confidence": float,
+            "label":      "person",
+            "box":        (x1, y1, x2, y2)  pixel coords
+        }
+
+    Used by debug/visualisation scripts; NOT consumed by camera_loop.
+    """
+    global _detector
+
+    if _detector is None:
+        _load_model()
+
+    if hasattr(_detector, "get_detections"):
+        return _detector.get_detections(frame)
+
+    log.warning(f"{type(_detector).__name__} has no get_detections(); returning [].")
+    return []
