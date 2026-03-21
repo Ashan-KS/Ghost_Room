@@ -28,6 +28,7 @@ feature_queue message:
 """
 
 import queue
+import os
 
 # ── Shared queues ─────────────────────────────────────────────────────────────
 vision_queue  = queue.Queue()   # Sachith  → Ashan
@@ -49,7 +50,7 @@ USE_PI_HARDWARE = False
 
 # ── Camera settings ───────────────────────────────────────────────────────────
 CAMERA_INDEX      = 0       # laptop webcam; ignored when USE_PI_HARDWARE=True
-CAMERA_FPS        = 0.5     # frames per second for inference loop
+CAMERA_FPS        = 30    # frames per second for inference loop
 FRAME_SIZE        = (300, 300)
 
 # ── Audio settings ────────────────────────────────────────────────────────────
@@ -75,7 +76,30 @@ ENABLE_S3_LOGGING = False
 S3_BUCKET_NAME    = "workspace-agent-logs"
 S3_LOG_PREFIX     = "events/"
 
-# ── Model paths ───────────────────────────────────────────────────────────────
-MOBILENET_MODEL_PATH  = "models/ssd_mobilenet_v2_coco_quant.tflite"
-ANOMALY_MODEL_PATH    = "models/baseline.pkl"   # saved after calibration
-CALIBRATION_DURATION  = 300   # seconds of empty-room recording for calibration
+# ── Model backend ─────────────────────────────────────────────────────────────
+# Options:  "mobilenet"  |  "yolo"
+MODEL_BACKEND = "yolo"
+
+# ── Model & label file paths ──────────────────────────────────────────────────
+# Drop your weights into the models/ folder and update the names below.
+#
+# MobileNet SSD (TFLite):
+#   models/ssd_mobilenet_v1_coco_quant.tflite   ← quantized uint8 (recommended for Pi)
+#   models/coco_labels.txt
+#
+# YOLOv8 (choose ONE format):
+#   models/yolov8n.pt        ← Ultralytics native (dev / laptop)
+#   models/yolov8n.onnx      ← ONNX export (Pi deployment, needs onnxruntime)
+#
+_MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
+
+if MODEL_BACKEND == "mobilenet":
+    MODEL_PATH = os.path.join(_MODELS_DIR, "ssd_mobilenet_v1_coco_quant.tflite")
+    LABEL_PATH = os.path.join(_MODELS_DIR, "coco_labels.txt")
+elif MODEL_BACKEND == "yolo":
+    MODEL_PATH = os.path.join(_MODELS_DIR, "yolov8n.pt")    # swap to .onnx on Pi
+    LABEL_PATH = os.path.join(_MODELS_DIR, "coco_labels.txt")
+else:
+    raise ValueError(f"Unknown MODEL_BACKEND: {MODEL_BACKEND!r}. Choose 'mobilenet' or 'yolo'.")
+
+
