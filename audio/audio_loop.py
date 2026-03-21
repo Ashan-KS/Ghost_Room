@@ -48,8 +48,12 @@ def audio_loop():
             feature_vector = extract_features(chunk)
             config.feature_queue.put(feature_vector)
 
-            # Get anomaly score from Ginura's model directly
-            anomaly_score = get_anomaly_score(feature_vector)
+            # Get anomaly score from Ginura's model — handle if not implemented yet
+            try:
+                anomaly_score = get_anomaly_score(feature_vector)
+            except NotImplementedError:
+                anomaly_score = 0.0
+                log.debug("Anomaly model not implemented — defaulting to 0.0")
 
             # Put separate messages into respective queues
             timestamp = datetime.now(timezone.utc).isoformat()

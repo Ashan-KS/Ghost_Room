@@ -123,7 +123,8 @@ def print_state_loop():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", choices=SCENARIOS.keys(), default="people_talking")
-    parser.add_argument("--room", default="A", help="Room ID to simulate")
+    parser.add_argument("--real-vision", action="store_true", help="Use real camera/vision logic")
+    parser.add_argument("--real-audio",  action="store_true", help="Use real mic/audio logic")
     args = parser.parse_args()
     
     config.ROOM_ID = args.room
@@ -147,12 +148,26 @@ if __name__ == "__main__":
     from fusion.fusion import fusion_loop
     from cloud.cloud_publisher import cloud_publisher
 
-    threads = [
-        threading.Thread(target=fake_vision_producer, args=(scenario,), name="MockVision",  daemon=True),
-        threading.Thread(target=fake_audio_producer,  args=(scenario,), name="MockAudio",   daemon=True),
-        threading.Thread(target=fusion_loop,                            name="FusionLoop",  daemon=True),
-        threading.Thread(target=cloud_publisher,                        name="CloudPublisher", daemon=True),
-    ]
+    # Prepare threads based on user flags
+    threads = []
+
+    # 1. Vision (Real vs Mock)
+    if args.real_vision:
+        from vision.camera_loop import camera_loop
+        threads.append(threading.Thread(target=camera_loop, name="RealVision", daemon=True))
+    else:
+        threads.append(threading.Thread(target=fake_vision_producer, args=(scenario,), name="MockVision", daemon=True))
+
+    # 2. Audio (Real vs Mock)
+    if args.real_audio:
+        from audio.audio_loop import audio_loop
+        threads.append(threading.Thread(target=audio_loop, name="RealAudio", daemon=True))
+    else:
+        threads.append(threading.Thread(target=fake_audio_producer, args=(scenario,), name="MockAudio", daemon=True))
+
+    # 3. Always Real (Fusion and Cloud)
+    threads.append(threading.Thread(target=fusion_loop, name="FusionLoop", daemon=True))
+    threads.append(threading.Thread(target=cloud_publisher, name="CloudPublisher", daemon=True))
     for t in threads:
         t.start()
 
