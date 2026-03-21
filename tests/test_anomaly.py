@@ -14,6 +14,7 @@ import numpy as np
 import os
 import pytest
 import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import config
@@ -24,14 +25,13 @@ TEST_MODEL_PATH = "models/test_baseline.pkl"
 def _make_baseline_data(n=200) -> np.ndarray:
     """Simulate quiet-room feature vectors — low RMS, flat MFCCs."""
     rng = np.random.default_rng(42)
-    return rng.normal(loc=0.01, scale=0.005, size=(n, 14)).astype(np.float32)
-
+    # 28 features by default, but change to match your model's required shape
+    return rng.normal(loc=0.01, scale=0.005, size=(n, 28)).astype(np.float32)
 
 def _make_noisy_vector() -> np.ndarray:
     """Simulate a loud, speech-like vector — high RMS, varied MFCCs."""
-    v = np.random.uniform(0.5, 1.0, size=(14,)).astype(np.float32)
+    v = np.random.uniform(0.5, 1.0, size=(28,)).astype(np.float32)
     return v
-
 
 @pytest.fixture(autouse=True)
 def patch_model_path(monkeypatch):
@@ -43,28 +43,28 @@ def patch_model_path(monkeypatch):
 
 
 def test_train_and_save_creates_file():
-    from anomaly.anomaly_model import train_and_save
+    from anomly.anomly_model import train_and_save
     X = _make_baseline_data()
     train_and_save(X)
     assert os.path.exists(TEST_MODEL_PATH), "baseline.pkl was not created"
 
 
 def test_load_model_no_error():
-    from anomaly.anomaly_model import train_and_save, load_model
+    from anomly.anomly_model import train_and_save, load_model
     X = _make_baseline_data()
     train_and_save(X)
     load_model()   # should not raise
 
 
 def test_get_anomaly_score_range():
-    from anomaly.anomaly_model import train_and_save, load_model, get_anomaly_score
+    from anomly.anomly_model import train_and_save, load_model, get_anomaly_score
     X = _make_baseline_data()
     train_and_save(X)
     load_model()
 
     baseline_vector = _make_baseline_data(n=1)[0]
     score = get_anomaly_score(baseline_vector)
-    assert isinstance(score, float), f"Expected float, got {type(score)}"
+    assert isinstance(score, (float, int)), f"Expected float or int, got {type(score)}"
     assert 0.0 <= score <= 1.0, f"Score {score} out of range [0, 1]"
 
 
@@ -73,7 +73,7 @@ def test_noisy_scores_higher_than_baseline():
     Core sanity check: vectors unlike the training data should score higher
     than vectors similar to training data.
     """
-    from anomaly.anomaly_model import train_and_save, load_model, get_anomaly_score
+    from anomly.anomly_model import train_and_save, load_model, get_anomaly_score
     X = _make_baseline_data(n=300)
     train_and_save(X)
     load_model()

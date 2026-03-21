@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 import config
 from audio.vad_processor    import is_speech, get_audio_chunk
 from audio.feature_extractor import extract_features
-from anomaly.anomaly_model  import get_anomaly_score
+from Repo.Ghost_Room.anomaly.dfhdgh.anomaly_model  import get_anomaly_score
 
 log = logging.getLogger(__name__)
 

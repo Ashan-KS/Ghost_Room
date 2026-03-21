@@ -58,6 +58,8 @@ AUDIO_CHUNK_MS    = 30      # ms per VAD frame (10, 20, or 30 only)
 AUDIO_DEVICE_INDEX = None   # None = system default; set to USB mic index on Pi
 VAD_MODE          = 2       # 0=least aggressive, 3=most aggressive
 N_MFCC            = 13      # number of MFCC coefficients to extract
+CALIBRATION_DURATION_MINUTES = 1  # calibration audio duration
+
 
 # ── GPIO pin assignments (Pi only) ────────────────────────────────────────────
 GPIO_RED_LED   = 17   # "Do Not Disturb" — room IN_USE
