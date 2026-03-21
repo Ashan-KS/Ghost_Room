@@ -18,11 +18,12 @@ def _put_vision(confidence: float):
 
 
 def _put_audio(vad_fired: bool, anomaly_score: float):
-    config.audio_queue.put({"vad_fired": vad_fired, "anomaly_score": anomaly_score, "timestamp": "2025-01-01T00:00:00"})
+    config.audio_queue.put({"vad_fired": vad_fired, "timestamp": "2025-01-01T00:00:00"})
+    config.anomaly_queue.put({"anomaly_score": anomaly_score, "timestamp": "2025-01-01T00:00:00"})
 
 
 def _clear_queues():
-    for q in [config.vision_queue, config.audio_queue, config.feature_queue]:
+    for q in [config.vision_queue, config.audio_queue, config.anomaly_queue, config.feature_queue]:
         while not q.empty():
             q.get_nowait()
 
@@ -44,8 +45,9 @@ def test_vision_below_threshold_no_signal():
 def test_audio_vad_and_anomaly_both_fire():
     _clear_queues()
     _put_audio(vad_fired=True, anomaly_score=0.80)
-    msg = _drain_queue(config.audio_queue)
-    audio_signal = msg["vad_fired"] and msg["anomaly_score"] >= config.ANOMALY_THRESHOLD
+    msg_a = _drain_queue(config.audio_queue)
+    msg_anom = _drain_queue(config.anomaly_queue)
+    audio_signal = msg_a["vad_fired"] and msg_anom["anomaly_score"] >= config.ANOMALY_THRESHOLD
     assert audio_signal is True
 
 
@@ -53,8 +55,9 @@ def test_audio_vad_fires_but_anomaly_suppresses():
     """VAD alone should NOT trigger — anomaly must also fire."""
     _clear_queues()
     _put_audio(vad_fired=True, anomaly_score=0.10)  # matches baseline
-    msg = _drain_queue(config.audio_queue)
-    audio_signal = msg["vad_fired"] and msg["anomaly_score"] >= config.ANOMALY_THRESHOLD
+    msg_a = _drain_queue(config.audio_queue)
+    msg_anom = _drain_queue(config.anomaly_queue)
+    audio_signal = msg_a["vad_fired"] and msg_anom["anomaly_score"] >= config.ANOMALY_THRESHOLD
     assert audio_signal is False
 
 
@@ -64,8 +67,9 @@ def test_ghost_booking_both_silent():
     _put_audio(vad_fired=False, anomaly_score=0.05)
     v = _drain_queue(config.vision_queue)
     a = _drain_queue(config.audio_queue)
+    m = _drain_queue(config.anomaly_queue)
     vision_signal = v["confidence"] >= config.VISION_THRESHOLD
-    audio_signal  = a["vad_fired"] and a["anomaly_score"] >= config.ANOMALY_THRESHOLD
+    audio_signal  = a["vad_fired"] and m["anomaly_score"] >= config.ANOMALY_THRESHOLD
     assert not (vision_signal or audio_signal)
 
 
@@ -76,6 +80,7 @@ def test_silent_worker_vision_only():
     _put_audio(vad_fired=False, anomaly_score=0.08)
     v = _drain_queue(config.vision_queue)
     a = _drain_queue(config.audio_queue)
+    m = _drain_queue(config.anomaly_queue)
     vision_signal = v["confidence"] >= config.VISION_THRESHOLD
-    audio_signal  = a["vad_fired"] and a["anomaly_score"] >= config.ANOMALY_THRESHOLD
+    audio_signal  = a["vad_fired"] and m["anomaly_score"] >= config.ANOMALY_THRESHOLD
     assert vision_signal or audio_signal

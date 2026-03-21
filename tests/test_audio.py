@@ -63,16 +63,33 @@ def test_audio_queue_message_contract():
     # Simulate what audio_loop puts in the queue
     message = {
         "vad_fired":     False,
-        "anomaly_score": 0.0,
         "timestamp":     datetime.now(timezone.utc).isoformat(),
     }
     config.audio_queue.put(message)
 
     result = config.audio_queue.get_nowait()
     assert "vad_fired"     in result
-    assert "anomaly_score" in result
     assert "timestamp"     in result
     assert isinstance(result["vad_fired"],     bool)
+
+
+def test_anomaly_queue_message_contract():
+    """Check anomaly_queue message has the right keys and types."""
+    from datetime import datetime, timezone
+
+    while not config.anomaly_queue.empty():
+        config.anomaly_queue.get_nowait()
+
+    # Simulate what audio_loop puts in the queue
+    message = {
+        "anomaly_score": 0.0,
+        "timestamp":     datetime.now(timezone.utc).isoformat(),
+    }
+    config.anomaly_queue.put(message)
+
+    result = config.anomaly_queue.get_nowait()
+    assert "anomaly_score" in result
+    assert "timestamp"     in result
     assert isinstance(result["anomaly_score"], float)
 
 

@@ -12,6 +12,11 @@ vision_queue message:
 audio_queue message:
     {
         "vad_fired":     bool,   # True if WebRTC VAD detected speech this chunk
+        "timestamp":     str,    # ISO format
+    }
+
+anomaly_queue message:
+    {
         "anomaly_score": float,  # 0.0–1.0, normalised score from IsolationForest
         "timestamp":     str,    # ISO format
     }
@@ -27,6 +32,7 @@ import queue
 # ── Shared queues ─────────────────────────────────────────────────────────────
 vision_queue  = queue.Queue()   # Sachith  → Ashan
 audio_queue   = queue.Queue()   # Rahul    → Ashan
+anomaly_queue = queue.Queue()   # Ginura   → Ashan
 feature_queue = queue.Queue()   # Rahul    → Ginura
 
 # ── Decision thresholds ───────────────────────────────────────────────────────

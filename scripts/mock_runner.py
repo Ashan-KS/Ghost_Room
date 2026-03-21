@@ -6,10 +6,10 @@ Injects fake vision and audio data so you can test your own
 module in the context of the whole pipeline.
 
 Usage:
-    python scripts/mock_runner.py --scenario people_talking
-    python scripts/mock_runner.py --scenario ghost_booking
-    python scripts/mock_runner.py --scenario silent_worker
-    python scripts/mock_runner.py --scenario ac_noise
+    uv run python scripts/mock_runner.py --scenario people_talking
+    uv run python scripts/mock_runner.py --scenario ghost_booking
+    uv run python scripts/mock_runner.py --scenario silent_worker
+    uv run python scripts/mock_runner.py --scenario ac_noise
 
 Press Ctrl+C to stop.
 """
@@ -27,6 +27,11 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+import sys
+import os
+
+# Ensure project root is in path so 'config', 'fusion', 'cloud' resolve correctly
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
 # ── Scenario definitions ──────────────────────────────────────────────────────
@@ -73,36 +78,46 @@ def fake_audio_producer(scenario: dict):
     """Mimics Rahul's audio_loop."""
     log.info(f"[MOCK] Audio producing vad={scenario['vad_fired']} anom={scenario['anomaly_score']}")
     while True:
+        timestamp = datetime.now(timezone.utc).isoformat()
         config.audio_queue.put({
-            "vad_fired":     scenario["vad_fired"],
+            "vad_fired": scenario["vad_fired"],
+            "timestamp": timestamp,
+        })
+        config.anomaly_queue.put({
             "anomaly_score": scenario["anomaly_score"],
-            "timestamp":     datetime.now(timezone.utc).isoformat(),
+            "timestamp":     timestamp,
         })
         time.sleep(1)
 
 
 def print_state_loop():
-    """Reads from both queues and prints the fusion decision."""
+    """Reads from queues and prints the fusion decision."""
     log.info("[MOCK] State printer started.")
+    
+    latest_vision = False
+    latest_audio = False
+    latest_anomaly = False
+    
     while True:
-        v = a = None
         while not config.vision_queue.empty():
             v = config.vision_queue.get_nowait()
+            latest_vision = v["confidence"] >= config.VISION_THRESHOLD
         while not config.audio_queue.empty():
             a = config.audio_queue.get_nowait()
+            latest_audio = a["vad_fired"]
+        while not config.anomaly_queue.empty():
+            m = config.anomaly_queue.get_nowait()
+            latest_anomaly = m["anomaly_score"] >= config.ANOMALY_THRESHOLD
 
-        if v and a:
-            vision_signal = v["confidence"] >= config.VISION_THRESHOLD
-            audio_signal  = a["vad_fired"] and a["anomaly_score"] >= config.ANOMALY_THRESHOLD
-            in_use        = vision_signal or audio_signal
-
-            state = "IN_USE" if in_use else "EMPTY"
-            log.info(
-                f"Vision={v['confidence']:.2f}({'✓' if vision_signal else '✗'})  "
-                f"VAD={'Y' if a['vad_fired'] else 'N'}  "
-                f"Anomaly={a['anomaly_score']:.2f}({'✓' if audio_signal else '✗'})  "
-                f"→  {state}"
-            )
+        combined_audio = latest_audio and latest_anomaly
+        in_use         = latest_vision or combined_audio
+        state = "IN_USE" if in_use else "EMPTY"
+        log.info(
+            f"Vision={'✓' if latest_vision else '✗'}  "
+            f"VAD={'Y' if latest_audio else 'N'}  "
+            f"Anomaly={'✓' if latest_anomaly else '✗'}  "
+            f"→  {state}"
+        )
         time.sleep(2)
 
 
@@ -114,10 +129,19 @@ if __name__ == "__main__":
     scenario = SCENARIOS[args.scenario]
     log.info(f"Running scenario: '{args.scenario}' — {scenario['description']}")
 
+    # Override the 10-minute timeout for quick local testing (flips to EMPTY in 5s)
+    config.EMPTY_TIMEOUT_SECONDS = 5
+    log.info("Overrode config.EMPTY_TIMEOUT_SECONDS to 5 for fast testing.")
+
+    # Import the actual real logic (Ashan's fusion and cloud publisher)
+    from fusion.fusion import fusion_loop
+    from cloud.cloud_publisher import cloud_publisher
+
     threads = [
         threading.Thread(target=fake_vision_producer, args=(scenario,), name="MockVision",  daemon=True),
         threading.Thread(target=fake_audio_producer,  args=(scenario,), name="MockAudio",   daemon=True),
-        threading.Thread(target=print_state_loop,                        name="StatePrinter",daemon=True),
+        threading.Thread(target=fusion_loop,                            name="FusionLoop",  daemon=True),
+        threading.Thread(target=cloud_publisher,                        name="CloudPublisher", daemon=True),
     ]
     for t in threads:
         t.start()

@@ -28,34 +28,45 @@ EMPTY  = "EMPTY"
 
 def fusion_loop():
     """Main fusion thread — runs forever."""
-    log.info("Fusion loop started.")
+    log.info("Fusion loop started. Waiting for sensors and cloud to connect...")
+    time.sleep(2)  # Give MQTT client time to fully connect to EC2
 
-    current_state      = EMPTY
+    current_state      = None
     last_signal_time   = 0.0
+
+    # Track latest signals for fusion of independent queues
+    latest_vision  = False
+    latest_audio   = False
+    latest_anomaly = False
 
     while True:
         now = time.time()
 
-        # Drain both queues — take the latest reading from each
-        vision_msg = _drain_queue(config.vision_queue)
-        audio_msg  = _drain_queue(config.audio_queue)
+        # Drain all queues — take the latest reading from each
+        vision_msg  = _drain_queue(config.vision_queue)
+        audio_msg   = _drain_queue(config.audio_queue)
+        anomaly_msg = _drain_queue(config.anomaly_queue)
 
         # ── Vision gate ───────────────────────────────────────────────────────
-        vision_signal = False
         if vision_msg is not None:
-            vision_signal = vision_msg["confidence"] >= config.VISION_THRESHOLD
-            log.debug(f"Vision conf={vision_msg['confidence']:.2f} → {vision_signal}")
+            latest_vision = vision_msg["confidence"] >= config.VISION_THRESHOLD
+            log.debug(f"Vision conf={vision_msg['confidence']:.2f} → {latest_vision}")
 
-        # ── Audio gate (AND: VAD must fire AND anomaly must be above threshold) ─
-        audio_signal = False
+        # ── Audio gate (VAD) ──────────────────────────────────────────────────
         if audio_msg is not None:
-            vad_ok   = audio_msg["vad_fired"]
-            anom_ok  = audio_msg["anomaly_score"] >= config.ANOMALY_THRESHOLD
-            audio_signal = vad_ok and anom_ok
-            log.debug(f"Audio vad={vad_ok} anom={audio_msg['anomaly_score']:.2f} → {audio_signal}")
+            latest_audio = audio_msg["vad_fired"]
+            log.debug(f"Audio vad={latest_audio}")
 
-        # ── OR fusion ─────────────────────────────────────────────────────────
-        any_signal = vision_signal or audio_signal
+        # ── Anomaly gate ──────────────────────────────────────────────────────
+        if anomaly_msg is not None:
+            latest_anomaly = anomaly_msg["anomaly_score"] >= config.ANOMALY_THRESHOLD
+            log.debug(f"Anomaly score={anomaly_msg['anomaly_score']:.2f} → {latest_anomaly}")
+
+        # ── Fusion ────────────────────────────────────────────────────────────
+        # audio and anomaly are combined, then OR'd with vision
+        combined_audio = latest_audio and latest_anomaly
+        any_signal     = latest_vision or combined_audio
+
         if any_signal:
             last_signal_time = now
 

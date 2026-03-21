@@ -51,12 +51,18 @@ def audio_loop():
             # Get anomaly score from Ginura's model directly
             anomaly_score = get_anomaly_score(feature_vector)
 
-            message = {
-                "vad_fired":     vad_fired,
+            # Put separate messages into respective queues
+            timestamp = datetime.now(timezone.utc).isoformat()
+            
+            config.audio_queue.put({
+                "vad_fired": vad_fired,
+                "timestamp": timestamp,
+            })
+            
+            config.anomaly_queue.put({
                 "anomaly_score": anomaly_score,
-                "timestamp":     datetime.now(timezone.utc).isoformat(),
-            }
-            config.audio_queue.put(message)
+                "timestamp":     timestamp,
+            })
 
             log.debug(f"Audio → vad={vad_fired}, anomaly={anomaly_score:.2f}")
 
