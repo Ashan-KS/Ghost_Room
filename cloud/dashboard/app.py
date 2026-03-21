@@ -4,13 +4,17 @@ from datetime import datetime, timedelta
 import time
 import os
 import sys
+import json
+import boto3
+import altair as alt
 from streamlit_autorefresh import st_autorefresh
 
-# Ensure imports work if run from inside app/ folder
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+# Ensure imports work regardless of where the script is run from
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from database import init_db, add_booking, get_bookings, delete_booking
 from mqtt_subscriber import start_mqtt, get_current_state
+import config
 
 # ==========================================================
 # Initialize Background Systems (Run Once)
@@ -35,9 +39,10 @@ st.set_page_config(
 # ==========================================================
 st.sidebar.title("👻 Ghost Room")
 st.sidebar.markdown("---")
-page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings"])
+page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings", "History"])
 st.sidebar.markdown("---")
 auto_refresh = st.sidebar.checkbox("Enable Auto-Refresh (Live Sync)", value=True)
+s3_demo_mode = st.sidebar.checkbox("S3 Demo Mode (Mock Data)", value=False, help="Show sample charts without S3 connection.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🛠️ Developer Tools")
@@ -191,6 +196,194 @@ if page == "Dashboard":
     if auto_refresh:
         st_autorefresh(interval=3000, key="dashboard_autorefresh")
         
+# ==========================================================
+# Page: History (Analytics)
+# ==========================================================
+elif page == "History":
+    col_header, col_refresh = st.columns([5, 1])
+    with col_header:
+        st.title("📜 Room History & Analytics")
+    with col_refresh:
+        st.markdown("<br>", unsafe_allow_html=True) # Align with title
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+            
+    st.markdown("Auditing sensor events and ghost booking detections stored in S3.")
+
+    @st.cache_data(ttl=300)
+    def fetch_s3_history(force_demo=False):
+        """Fetches and parses JSON logs from the S3 bucket or returns mock data."""
+        # Use demo mode if the toggle is ON OR if S3 is disabled in the global config
+        use_mock = force_demo or not getattr(config, 'ENABLE_S3_LOGGING', True)
+        
+        if use_mock:
+            # Generate 30 mock events for a "full day" visualization
+            mock_data = []
+            now = datetime.now().replace(hour=17, minute=0, second=0, microsecond=0)
+            organizers = ["Alice", "Bob", "Charlie", "Diana"]
+            
+            for i in range(30):
+                event_time = now - timedelta(minutes=i*30)
+                # Cycle through types
+                if i % 4 == 0:
+                    etype, status = "GHOST_DETECTION", "EMPTY"
+                elif i % 2 == 0:
+                    etype, status = "STATE_CHANGE", "IN_USE"
+                else:
+                    etype, status = "STATE_CHANGE", "EMPTY"
+
+                mock_data.append({
+                    "event_type": etype,
+                    "room": "A",
+                    "status": status,
+                    "logged_at": event_time.isoformat(),
+                    "booked_by": organizers[i % len(organizers)],
+                    "title": f"Meeting {i}",
+                    "duration_min": 30 # For utilization calc
+                })
+            return pd.DataFrame(mock_data)
+
+
+        try:
+            s3 = boto3.client('s3')
+            # Extract bucket/prefix from config
+            bucket = config.S3_BUCKET_NAME
+            prefix = config.S3_LOG_PREFIX
+            
+            response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+            if 'Contents' not in response:
+                return pd.DataFrame()
+            
+            all_events = []
+            # We only fetch the last 100 objects to keep the dashboard snappy
+            sorted_contents = sorted(response['Contents'], key=lambda x: x['LastModified'], reverse=True)[:100]
+            
+            for obj in sorted_contents:
+                try:
+                    data_obj = s3.get_object(Bucket=bucket, Key=obj['Key'])
+                    payload = json.loads(data_obj['Body'].read().decode('utf-8'))
+                    all_events.append(payload)
+                except Exception:
+                    continue
+            
+            return pd.DataFrame(all_events)
+        except Exception as e:
+            st.error(f"Could not reach S3. Check IAM permissions. Error: {e}")
+            return pd.DataFrame()
+
+    with st.spinner("Fetching logs..."):
+        history_df = fetch_s3_history(force_demo=s3_demo_mode)
+
+    if history_df.empty:
+        st.info("No logs found in S3 yet. History will appear once events are recorded.")
+    else:
+        # ── Metrics ──
+        total_events = len(history_df)
+        ghost_events = len(history_df[history_df['event_type'] == 'GHOST_DETECTION']) if 'event_type' in history_df.columns else 0
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total Events Logged", total_events)
+        m2.metric("Ghost Bookings Detected", ghost_events, delta=f"{ghost_events} alerts", delta_color="inverse")
+        
+        if ghost_events > 0 and 'booked_by' in history_df.columns:
+            # Filter for ghost events before finding mode
+            ghost_df = history_df[history_df['event_type'] == 'GHOST_DETECTION']
+            if not ghost_df.empty:
+                top_offender = ghost_df['booked_by'].mode()[0]
+                m3.metric("Top 'Ghost' Organizer", top_offender)
+            else:
+                m3.metric("Top 'Ghost' Organizer", "N/A")
+        else:
+            m3.metric("Top 'Ghost' Organizer", "N/A")
+
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # ── Visualization ──
+        tab1, tab2 = st.tabs(["📊 Analytics Dashboard", "📅 Detailed Event Audit"])
+        
+        with tab1:
+            # 1. Room Utilization by Organizer (Stacked Bar)
+            st.subheader("Room Utilization by Organizer (Today)")
+            if not history_df.empty:
+                # Prepare utilization data
+                util_df = history_df.copy()
+                # Categorize into In Use, Not In Use, Ghost
+                def categorize(row):
+                    if row['event_type'] == 'GHOST_DETECTION': return 'GHOST_BOOKING'
+                    if row['status'] == 'IN_USE': return 'IN_USE'
+                    return 'NOT_IN_USE'
+                
+                util_df['category'] = util_df.apply(categorize, axis=1)
+                
+                # Chart: Show duration (count in mock) per organizer
+                util_chart = alt.Chart(util_df).mark_bar().encode(
+                    x=alt.X('sum(duration_min):Q' if 'duration_min' in util_df.columns else 'count():Q', title='Total Minutes / Events'),
+                    y=alt.Y('booked_by:N', title='Organizer', sort='-x'),
+                    color=alt.Color('category:N', scale=alt.Scale(
+                        domain=['IN_USE', 'NOT_IN_USE', 'GHOST_BOOKING'],
+                        range=['#4CAF50', '#9E9E9E', '#FF4B4B'] # Green, Grey, Red
+                    ), title='Room State'),
+                    tooltip=['booked_by', 'category', 'count()' if 'duration_min' not in util_df.columns else 'sum(duration_min)']
+                ).properties(height=300)
+                
+                st.altair_chart(util_chart, use_container_width=True)
+            else:
+                st.info("No logs available yet.")
+
+            st.markdown("---")
+            
+            # 2. Distribution Donut Chart
+            col_a, col_b = st.columns([1, 1])
+            with col_a:
+                st.subheader("Total Time Distribution")
+                if not history_df.empty:
+                    dist_df = util_df['category'].value_counts().reset_index()
+                    dist_df.columns = ['status', 'count']
+                    
+                    pie = alt.Chart(dist_df).mark_arc(innerRadius=60).encode(
+                        theta=alt.Theta(field="count", type="quantitative"),
+                        color=alt.Color(field="status", type="nominal", scale=alt.Scale(
+                            domain=['IN_USE', 'NOT_IN_USE', 'GHOST_BOOKING'],
+                            range=['#4CAF50', '#9E9E9E', '#FF4B4B']
+                        )),
+                        tooltip=['status', 'count']
+                    ).properties(height=300)
+                    
+                    st.altair_chart(pie, use_container_width=True)
+
+            with col_b:
+                st.subheader("Quick Stats")
+                total_min = util_df['duration_min'].sum() if 'duration_min' in util_df.columns else len(util_df)
+                ghost_min = util_df[util_df['category'] == 'GHOST_BOOKING']['duration_min'].sum() if 'duration_min' in util_df.columns else len(util_df[util_df['category'] == 'GHOST_BOOKING'])
+                efficiency = (1 - (ghost_min / total_min)) * 100 if total_min > 0 else 0
+                
+                st.metric("Room Efficiency Score", f"{efficiency:.1f}%")
+                st.write("Efficiency is calculated based on the ratio of actual usage vs ghosted slots.")
+                st.markdown(f"**Total Tracked Time:** {total_min} mins" if 'duration_min' in util_df.columns else f"**Total Events:** {total_min}")
+
+        with tab2:
+            st.subheader("Detailed Event Audit")
+            if not history_df.empty:
+                # Format timestamps for readability in the table
+                display_df = history_df.copy()
+                if 'logged_at' in display_df.columns:
+                    # Keep a string version for display
+                    display_df['time'] = pd.to_datetime(display_df['logged_at']).dt.strftime('%b %d, %H:%M:%S')
+                
+                # Reorder columns to put important info first
+                cols = ['time', 'event_type', 'status', 'booked_by', 'title'] # Changed 'meeting_title' to 'title'
+                existing_cols = [c for c in cols if c in display_df.columns]
+                other_cols = [c for c in display_df.columns if c not in existing_cols]
+                
+                st.dataframe(
+                    display_df[existing_cols + other_cols], 
+                    use_container_width=True, 
+                    hide_index=True
+                )
+            else:
+                st.write("No data available to display in the audit log.")
 # ==========================================================
 # Page: Manage Bookings
 # ==========================================================

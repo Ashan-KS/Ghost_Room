@@ -6,9 +6,8 @@ Injects fake vision and audio data so you can test your own
 module in the context of the whole pipeline.
 
 Usage:
-    uv run python scripts/mock_runner.py --scenario people_talking
-    uv run python scripts/mock_runner.py --scenario ghost_booking
-    uv run python scripts/mock_runner.py --scenario silent_worker
+    uv run python scripts/mock_runner.py --scenario ghost_booking --room A
+    uv run python scripts/mock_runner.py --scenario silent_worker --room B
     uv run python scripts/mock_runner.py --scenario ac_noise
 
 Press Ctrl+C to stop.
@@ -124,10 +123,21 @@ def print_state_loop():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", choices=SCENARIOS.keys(), default="people_talking")
+    parser.add_argument("--room", default="A", help="Room ID to simulate")
     args = parser.parse_args()
-
+    
+    config.ROOM_ID = args.room
     scenario = SCENARIOS[args.scenario]
-    log.info(f"Running scenario: '{args.scenario}' — {scenario['description']}")
+    
+    log.info(f"Running scenario: '{args.scenario}' for Room '{args.room}'")
+    log.info(f"Description: {scenario['description']}")
+    
+    if args.scenario == "ghost_booking":
+        log.warning("--- GHOST BOOKING TEST ---")
+        log.warning(f"Note: For the cloud to detect this as a GHOST, you must first")
+        log.warning(f"add a meeting for Room '{args.room}' in the 'Manage Bookings' tab")
+        log.warning(f"on the Dashboard that is active right now.")
+        log.warning("--------------------------")
 
     # Override the 10-minute timeout for quick local testing (flips to EMPTY in 5s)
     config.EMPTY_TIMEOUT_SECONDS = 5

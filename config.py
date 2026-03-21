@@ -71,6 +71,7 @@ MQTT_TOPIC_CMD    = "room/A/command"    # Pi subscribes here (for maintenance lo
 ROOM_ID           = "A"
 
 # ── AWS S3 ────────────────────────────────────────────────────────────────────
+ENABLE_S3_LOGGING = False
 S3_BUCKET_NAME    = "workspace-agent-logs"
 S3_LOG_PREFIX     = "events/"
 
