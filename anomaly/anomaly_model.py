@@ -79,7 +79,7 @@ def get_anomaly_score(vector: np.ndarray) -> float:
 
     if _model is None:
         log.warning("Anomaly model not loaded — returning 0.0.")
-        return 0.0
+        return 1.0
 
     # TODO (Ginura): implement this
     # Steps:
