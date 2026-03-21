@@ -22,7 +22,7 @@ import numpy as np
 import config
 from audio.feature_extractor import extract_features, get_zero_vector, FEATURE_DIM
 from audio.vad_processor     import get_audio_chunk
-from anomaly.anomaly_model   import train_and_save
+from Repo.Ghost_Room.anomly.dfhdgh.anomaly_model   import train_and_save
 
 log = logging.getLogger(__name__)
 

@@ -18,6 +18,7 @@ opencv-python>=4.8
 webrtcvad>=2.0.10
 webrtcvad-wheels>=2.0.10
 pyaudio>=0.2.13
+sounddevice>=0.4.6
 
 # ── Cloud / MQTT ──────────────────────────────────────────────────────────────
 paho-mqtt>=1.6
