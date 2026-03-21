@@ -125,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("--scenario", choices=SCENARIOS.keys(), default="people_talking")
     parser.add_argument("--real-vision", action="store_true", help="Use real camera/vision logic")
     parser.add_argument("--real-audio",  action="store_true", help="Use real mic/audio logic")
+    parser.add_argument("--room",        default="A",         help="Room ID to simulate")
     args = parser.parse_args()
     
     config.ROOM_ID = args.room
