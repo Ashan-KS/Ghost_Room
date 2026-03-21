@@ -1,0 +1,19 @@
+# ── Core (always required) ────────────────────────────────────────────────────
+numpy>=1.23.0
+opencv-python>=4.7.0
+
+# ── MobileNet SSD backend (default) ───────────────────────────────────────────
+# Lightweight TFLite runtime — much faster to install than full TensorFlow.
+# Use this on both laptop and Raspberry Pi.
+# tflite-runtime>=2.13.0
+
+# If tflite-runtime fails to install for your Python version, fall back to:
+tensorflow>=2.13.0
+
+# ── YOLO backend (optional — only needed if MODEL_BACKEND = "yolo") ───────────
+# Option A: Ultralytics — easiest for development on laptop
+ultralytics>=8.0.0
+
+# Option B: ONNX Runtime — lightweight, recommended for Pi deployment
+#            Export weights first:  yolo export model=yolov8n.pt format=onnx
+onnxruntime>=1.16.0
