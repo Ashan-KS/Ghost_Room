@@ -13,6 +13,14 @@ _stat_std = None
 _stat_threshold = None
 _iso_threshold = None
 
+# ML Fine-tuning parameters
+N_MFCC = 13
+N_FFT_MAX = 512
+ANOMALY_CONTAMINATION = 0.05
+ANOMALY_RANDOM_STATE = 42
+ANOMALY_PERCENTILE = 5
+
+
 def _extract_features(audio: np.ndarray, sr: int = config.AUDIO_SAMPLE_RATE) -> np.ndarray:
     """
     Extract features from audio vector: 13 MFCC means, 13 MFCC stds, energy, ZCR.
@@ -20,8 +28,8 @@ def _extract_features(audio: np.ndarray, sr: int = config.AUDIO_SAMPLE_RATE) -> 
     """
     if len(audio.shape) > 1:
         audio = audio.flatten()
-    n_fft = min(512, len(audio))
-    mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=13, n_fft=n_fft)
+    n_fft = min(N_FFT_MAX, len(audio))
+    mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=N_MFCC, n_fft=n_fft)
     mfcc_means = np.mean(mfcc, axis=1)
     mfcc_stds  = np.std(mfcc, axis=1)
     energy = np.mean(audio ** 2)
@@ -42,10 +50,10 @@ def train_and_save(X: np.ndarray):
     X_scaled = _scaler.fit_transform(X)
 
     # IsolationForest
-    _model = IsolationForest(contamination=config.ANOMALY_CONTAMINATION, random_state=config.ANOMALY_RANDOM_STATE)
+    _model = IsolationForest(contamination=ANOMALY_CONTAMINATION, random_state=ANOMALY_RANDOM_STATE)
     _model.fit(X_scaled)
     scores = _model.decision_function(X_scaled)
-    _iso_threshold = np.percentile(scores, config.ANOMALY_PERCENTILE)
+    _iso_threshold = np.percentile(scores, ANOMALY_PERCENTILE)
 
     # Save everything needed for inference
     save_data = {

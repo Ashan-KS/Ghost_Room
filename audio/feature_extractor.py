@@ -20,7 +20,10 @@ import config
 
 log = logging.getLogger(__name__)
 
-FEATURE_DIM = 1 + config.N_MFCC   # 14 total: 1 RMS + 13 MFCCs
+N_MFCC = 13       # number of MFCC coefficients to extract
+N_FFT_MAX = 512   # Max FFT window size (clipped to chunk size)
+
+FEATURE_DIM = 1 + N_MFCC   # 14 total: 1 RMS + 13 MFCCs
 
 
 def extract_features(chunk: bytes) -> np.ndarray:
@@ -44,11 +47,11 @@ def extract_features(chunk: bytes) -> np.ndarray:
 
         # 3. MFCCs via librosa
         #    n_fft must be <= number of samples (480 for 30ms @ 16kHz)
-        n_fft = min(config.N_FFT_MAX, len(samples))
+        n_fft = min(N_FFT_MAX, len(samples))
         mfccs = librosa.feature.mfcc(
             y=samples,
             sr=config.AUDIO_SAMPLE_RATE,
-            n_mfcc=config.N_MFCC,
+            n_mfcc=N_MFCC,
             n_fft=n_fft,
         )
         mfcc_mean = np.mean(mfccs, axis=1)   # shape (13,)

@@ -21,14 +21,16 @@ _vad      = None
 _stream   = None
 _pyaudio  = None
 
+VAD_MODE = 2  # 0=least aggressive, 3=most aggressive
+
 
 def _init_vad():
     """Initialise WebRTC VAD. Called once."""
     global _vad
     try:
         import webrtcvad
-        _vad = webrtcvad.Vad(config.VAD_MODE)
-        log.info(f"WebRTC VAD initialised (mode={config.VAD_MODE})")
+        _vad = webrtcvad.Vad(VAD_MODE)
+        log.info(f"WebRTC VAD initialised (mode={VAD_MODE})")
     except ImportError:
         log.warning("webrtcvad not installed — is_speech() will always return False.")
 

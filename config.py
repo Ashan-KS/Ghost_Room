@@ -33,9 +33,6 @@ anomaly_queue = queue.Queue()   # Ginura   → Ashan
 VISION_THRESHOLD  = 0.50   # MobileNet confidence above this → person detected
 VAD_THRESHOLD     = 0.60   # VAD confidence above this → speech detected
 ANOMALY_THRESHOLD = 0.50   # Anomaly score above this → not baseline (real signal)
-ANOMALY_CONTAMINATION = 0.05   # IsolationForest contamination parameter
-ANOMALY_RANDOM_STATE  = 42     # For reproducible model training
-ANOMALY_PERCENTILE     = 5      # Percentile for isolation threshold
 
 # ── State machine ─────────────────────────────────────────────────────────────
 EMPTY_TIMEOUT_SECONDS = 300   # 10 minutes of no signal → flip to EMPTY
@@ -53,9 +50,7 @@ FRAME_SIZE        = (300, 300)
 AUDIO_SAMPLE_RATE = 16000   # Hz — required by webrtcvad
 AUDIO_CHUNK_MS    = 30      # ms per VAD frame (10, 20, or 30 only)
 AUDIO_DEVICE_INDEX = None   # None = system default; set to USB mic index on Pi
-VAD_MODE          = 2       # 0=least aggressive, 3=most aggressive
-N_MFCC            = 13      # number of MFCC coefficients to extract
-N_FFT_MAX         = 512     # Max FFT window size (clipped to chunk size)
+AUDIO_DEVICE_INDEX = None   # None = system default; set to USB mic index on Pi
 CALIBRATION_DURATION_S = 60    # seconds of empty-room recording for calibration
 AUDIO_LOG_STATS_INTERVAL_S = 5    # Frequency of audio loop stats logging
 
