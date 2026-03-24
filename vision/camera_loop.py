@@ -149,7 +149,7 @@ def camera_loop() -> None:
                 log.warning("vision_queue full — frame dropped (consumer too slow).")
  
             status = "OCCUPIED" if confidence >= config.VISION_THRESHOLD else "vacant "
-            log.info(
+            log.debug(
                 f"[vision_queue] {status} | "
                 f"persons={person_count} | "
                 f"confidence={confidence:.2f} | "

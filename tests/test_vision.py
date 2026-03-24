@@ -65,3 +65,5 @@ def test_vision_queue_message_shape():
     assert "confidence" in result, "Message missing 'confidence' key"
     assert "timestamp"  in result, "Message missing 'timestamp' key"
     assert isinstance(result["confidence"], float)
+
+# uv run pytest tests/test_vision.py -v

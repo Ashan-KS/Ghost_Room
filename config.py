@@ -61,7 +61,7 @@ GPIO_RED_LED   = 17   # "Do Not Disturb" — room IN_USE
 GPIO_GREEN_LED = 27   # "Available"      — room EMPTY
 
 # ── Cloud / MQTT ──────────────────────────────────────────────────────────────
-MQTT_BROKER_HOST  = "13.60.37.69"
+MQTT_BROKER_HOST  = "localhsot"
 MQTT_BROKER_PORT  = 1883
 MQTT_TOPIC_STATUS = "room/A/status"     # Pi publishes here
 MQTT_TOPIC_CMD    = "room/A/command"    # Pi subscribes here (for maintenance lock)
@@ -88,6 +88,7 @@ MODEL_BACKEND = "yolo"
 #   models/yolov8n.onnx      ← ONNX export (Pi deployment, needs onnxruntime)
 #
 _MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
+ANOMALY_MODEL_PATH = os.path.join(_MODELS_DIR, "baseline.pkl")
 
 if MODEL_BACKEND == "mobilenet":
     MODEL_PATH = os.path.join(_MODELS_DIR, "ssd_mobilenet_v1_coco_quant.tflite")

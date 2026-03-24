@@ -72,7 +72,7 @@ def audio_loop():
             # ── 4. Periodic stats ───────────────────────────────────────────
             frames_per_interval = int((config.AUDIO_LOG_STATS_INTERVAL_S * 1000) / config.AUDIO_CHUNK_MS)
             if frame_count % frames_per_interval == 0:
-                log.info(
+                log.debug(
                     f"Audio stats ({frame_count} frames): "
                     f"speech={speech_count}  "
                     f"anomaly={anomaly_count}  "

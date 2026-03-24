@@ -1,77 +1,106 @@
-# Workspace Agent — Edge AI Room Monitor
+# Ghost Room: Multi-Modal Room Occupancy Detection
 
-Autonomous meeting room occupancy detection using a Raspberry Pi 4,
-camera, microphone, and AWS cloud integration.
+An autonomous edge-AI system for detecting "Ghost Bookings" (rooms booked but unoccupied) and monitoring room utilization. It uses a fusion of Vision, Audio, and Anomaly Detection to accurately determine occupancy without requiring expensive proprietary hardware. 
 
----
-
-## Team & ownership
-
-| Module | Owner | Files |
-|---|---|---|
-| Vision (MobileNet SSD) | Sachith | `vision/` |
-| Audio (VAD + features) | Rahul   | `audio/`  |
-| Anomaly detection      | Ginura  | `anomaly/`|
-| Fusion + cloud + GPIO  | Ashan   | `fusion/`, `cloud/`, `gpio/`, `main.py` |
+Designed to run on edge devices like the Raspberry Pi 4, as well as laptops for development.
 
 ---
 
-## Setup (everyone does this first)
+## 🏗️ Architecture & Modules
+
+The system uses three primary models feeding into a central fusion logic via thread-safe queues.
+
+| Subsystem | Approach | Owner | Location |
+|---|---|---|---|
+| **Vision** | Object detection (YOLOv8 / MobileNet SSD) to count persons. | Sachith | `vision/` |
+| **Audio** | WebRTC VAD (Voice Activity Detection) + Feature Extraction. | Rahul | `audio/` |
+| **Anomaly** | Isolation Forest on environmental audio features to detect non-vocal activity. | Ginura | `anomaly/` |
+| **Fusion & Cloud** | Decision logic combining the above + MQTT AWS publishing. | Ashan | `fusion/`, `cloud/`, `main.py` |
+
+---
+
+## 🚀 Setup Instructions (Using `uv`)
+
+This project uses [`uv`](https://github.com/astral-sh/uv), an extremely fast Python package and environment manager.
+
+### 1. Install `uv`
+If you haven't installed `uv` yet:
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**macOS/Linux:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### 2. Environment Setup
+
+Clone the repository and set up your virtual environment:
 
 ```bash
 git clone <repo-url>
-cd workspace-agent
-python -m venv venv
-source venv/bin/activate       # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+cd Ghost_Room
+
+# Create a Python 3.10 virtual environment
+uv venv --python 3.10
+
+# Install all dependencies from pyproject.toml
+uv sync
 ```
 
-Download MobileNet weights (see `models/README.txt`).
+> **Note on Network Timeouts**: 
+> If `uv` times out downloading large ML packages like TensorFlow or PyTorch, extend the timeout limit:
+> * **Windows**: `set UV_HTTP_TIMEOUT=120` inside CMD before running `uv sync`.
+
+### 3. Model Weights Delivery
+Download the corresponding vision weights and place them inside the `models/` directory:
+- `yolov8n.pt` (Ultralytics)
+- `ssd_mobilenet_v1_coco_quant.tflite` (TensorFlow Lite)
 
 ---
 
-## Running your module in isolation
+## 🧪 Running Tests
 
-Each person tests their own module independently using the mock runner:
+Ensure your module passes tests before committing anything to the `main` branch. 
+Using the `.venv` Python explicitly ensures it isolates from global Anaconda/System Python versions.
 
 ```bash
-# Test with a fake scenario — no hardware needed
-python scripts/mock_runner.py --scenario people_talking
-python scripts/mock_runner.py --scenario ghost_booking
-python scripts/mock_runner.py --scenario silent_worker
-python scripts/mock_runner.py --scenario ac_noise
+# Run all tests
+.venv\Scripts\python -m pytest tests/ -v
+
+# Or run a specific module's tests
+.venv\Scripts\python -m pytest tests/test_vision.py -v
 ```
 
 ---
 
-## Running tests
+## 💻 Running the System
+
+### Local Development (Laptops)
+To run the full system locally without deploying to AWS:
+1. Open `config.py`.
+2. Ensure `USE_PI_HARDWARE = False`.
+3. Set `MQTT_BROKER_HOST = "localhost"` (this simulates a cloud failure and safely proceeds with local logging).
+4. Run the main agent process:
 
 ```bash
-pytest tests/test_vision.py  -v   # Sachith
-pytest tests/test_audio.py   -v   # Rahul
-pytest tests/test_anomaly.py -v   # Ginura
-pytest tests/test_fusion.py  -v   # Ashan
-pytest                            # run all
+.venv\Scripts\python main.py
+```
+*Note: On the first ever run, if `models/baseline.pkl` does not exist, the system will initialize a 60-second audio calibration period to baseline ambient room noise. Keep the room quiet during this!*
+
+### Raspberry Pi Deployment
+1. Set `USE_PI_HARDWARE = True` in `config.py`.
+2. Configure `MQTT_BROKER_HOST` to the proper AWS EC2 instance IP.
+3. Start the agent:
+```bash
+.venv\Scripts\python main.py
 ```
 
-All tests must pass before pushing to main.
-
----
-
-## Running the full system (laptop)
-
+To run as a systemd service (auto-starts on boot):
 ```bash
-# config.py: USE_PI_HARDWARE = False
-python main.py
-```
-
-## Running on Raspberry Pi
-
-```bash
-# config.py: USE_PI_HARDWARE = True, set MQTT_BROKER_HOST
-python main.py
-
-# Or install as a systemd service (auto-starts on boot):
 sudo cp scripts/workspace-agent.service /etc/systemd/system/
 sudo systemctl enable workspace-agent
 sudo systemctl start workspace-agent
@@ -80,82 +109,12 @@ sudo journalctl -u workspace-agent -f   # view logs
 
 ---
 
-## Interface contracts — READ BEFORE CODING
-
-These are the agreed message shapes for each queue.
-**Do not change these without telling the whole team.**
-
-### `vision_queue` (Sachith → Ashan)
-```python
-{
-    "confidence": float,   # 0.0–1.0, MobileNet person confidence
-    "timestamp":  str,     # ISO format "2025-03-19T10:15:03+00:00"
-}
-```
-
-### `audio_queue` (Rahul → Ashan)
-```python
-{
-    "vad_fired":     bool,   # True if WebRTC VAD detected speech
-    "anomaly_score": float,  # 0.0–1.0, normalised IsolationForest score
-    "timestamp":     str,    # ISO format
-}
-```
-
-### `feature_queue` (Rahul → Ginura)
-```python
-numpy.ndarray, shape (14,), dtype float32
-# [rms, mfcc_0, mfcc_1, ..., mfcc_12]
-```
-
----
-
-## Decision logic
-
-```
+## 🔀 Decision Logic
+The `fusion/fusion.py` module evaluates inputs roughly 30 times a second using:
+```text
 audio_signal = vad_fired AND anomaly_score >= 0.50
 vision_signal = confidence >= 0.50
 in_use = vision_signal OR audio_signal
-EMPTY declared after 10 minutes of no signal
-```
 
----
-
-## Project structure
-
-```
-workspace-agent/
-├── main.py                  # Entry point — Ashan
-├── config.py                # Shared config, queues, thresholds — everyone imports this
-├── requirements.txt
-├── vision/
-│   ├── camera_loop.py       # Thread: captures frames, pushes to vision_queue — Sachith
-│   ├── vision_inference.py  # MobileNet SSD inference — Sachith
-│   └── frame_utils.py       # Camera capture + preprocessing — Sachith
-├── audio/
-│   ├── audio_loop.py        # Thread: captures audio, pushes to queues — Rahul
-│   ├── vad_processor.py     # WebRTC VAD wrapper — Rahul
-│   └── feature_extractor.py # Extracts (14,) feature vector — Rahul ← Ginura depends on this
-├── anomaly/
-│   ├── calibration.py       # 5-min calibration, trains baseline — Ginura
-│   └── anomaly_model.py     # IsolationForest train/load/infer — Ginura
-├── fusion/
-│   └── fusion.py            # OR gate + state machine + 10-min timer — Ashan
-├── cloud/
-│   ├── cloud_publisher.py   # MQTT publish/subscribe — Ashan
-│   └── dashboard/
-│       └── app.py           # Streamlit dashboard on EC2 — Ashan
-├── gpio/
-│   └── actuator.py          # LED control via GPIO — Ashan
-├── models/
-│   ├── README.txt           # How to download MobileNet weights
-│   └── ssd_mobilenet_v2_coco_quant.tflite   # download separately
-├── tests/
-│   ├── test_vision.py       # Sachith's tests
-│   ├── test_audio.py        # Rahul's tests
-│   ├── test_anomaly.py      # Ginura's tests
-│   └── test_fusion.py       # Ashan's tests
-└── scripts/
-    ├── mock_runner.py        # Simulate full pipeline on laptop — everyone
-    └── workspace-agent.service  # systemd service for Pi autostart
+state = EMPTY declared after 10 continuous minutes of no signal
 ```

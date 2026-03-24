@@ -36,8 +36,11 @@ def fusion_loop():
 
     # Track latest signals for fusion of independent queues
     latest_vision  = False
+    curr_vision_conf = 0.0
+    curr_person_count = 0
     latest_audio   = False
     latest_anomaly = False
+    curr_anomaly_score = 0.0
 
     while True:
         now = time.time()
@@ -49,22 +52,30 @@ def fusion_loop():
 
         # ── Vision gate ───────────────────────────────────────────────────────
         if vision_msg is not None:
-            latest_vision = vision_msg["confidence"] >= config.VISION_THRESHOLD
-            log.debug(f"Vision conf={vision_msg['confidence']:.2f} → {latest_vision}")
+            curr_vision_conf = vision_msg["confidence"]
+            curr_person_count = vision_msg.get("person_count", 0)
+            latest_vision = curr_vision_conf >= config.VISION_THRESHOLD
 
         # ── Audio gate (VAD) ──────────────────────────────────────────────────
         if audio_msg is not None:
             latest_audio = audio_msg["vad_fired"]
-            log.debug(f"Audio vad={latest_audio}")
 
         # ── Anomaly gate ──────────────────────────────────────────────────────
         if anomaly_msg is not None:
-            latest_anomaly = anomaly_msg["anomaly_score"] >= config.ANOMALY_THRESHOLD
+            curr_anomaly_score = anomaly_msg["anomaly_score"]
+            latest_anomaly = curr_anomaly_score >= config.ANOMALY_THRESHOLD
 
         # ── Fusion ────────────────────────────────────────────────────────────
         # audio and anomaly are combined, then OR'd with vision
         combined_audio = latest_audio and latest_anomaly
         any_signal     = latest_vision or combined_audio
+
+        log.info(
+            f"[FUSION] Vision: {curr_vision_conf:.2f} ({curr_person_count} persons) | "
+            f"VAD: {'ON' if latest_audio else 'OFF'} | "
+            f"Anomaly: {curr_anomaly_score:.2f} | "
+            f"Overall Signal: {'YES' if any_signal else 'NO'}"
+        )
 
         if any_signal:
             last_signal_time = now
