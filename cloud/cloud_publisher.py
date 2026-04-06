@@ -66,7 +66,9 @@ def publish_state(state: str):
 
     client = _get_client()
     if client:
-        client.publish(config.MQTT_TOPIC_STATUS, payload)
+        # retain=True is CRITICAL. If Streamlit opens 10 minutes after the Room agents 
+        # started, the Broker will instantly deliver the last known state!
+        client.publish(config.MQTT_TOPIC_STATUS, payload, retain=True)
         log.info(f"Published: {payload}")
     else:
         log.warning(f"No MQTT client — state not published: {state}")

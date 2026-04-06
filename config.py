@@ -61,7 +61,7 @@ GPIO_RED_LED   = 17   # "Do Not Disturb" — room IN_USE
 GPIO_GREEN_LED = 27   # "Available"      — room EMPTY
 
 # ── Cloud / MQTT ──────────────────────────────────────────────────────────────
-MQTT_BROKER_HOST  = "localhsot"
+MQTT_BROKER_HOST  = "13.60.240.66"
 MQTT_BROKER_PORT  = 1883
 MQTT_TOPIC_STATUS = "room/A/status"     # Pi publishes here
 MQTT_TOPIC_CMD    = "room/A/command"    # Pi subscribes here (for maintenance lock)
@@ -69,7 +69,7 @@ MQTT_TOPIC_CALIB_PROGRESS = "room/A/calibration/progress"  # Pi publishes calibr
 ROOM_ID           = "A"
 
 # ── AWS S3 ────────────────────────────────────────────────────────────────────
-ENABLE_S3_LOGGING = False
+ENABLE_S3_LOGGING = True
 S3_BUCKET_NAME    = "workspace-agent-logs"
 S3_LOG_PREFIX     = "events/"
 

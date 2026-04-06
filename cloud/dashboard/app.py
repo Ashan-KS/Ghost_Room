@@ -190,7 +190,7 @@ if page == "Dashboard":
         
         st.dataframe(
             today_df[['Time', 'Meeting', 'Organizer', 'Status']], 
-            use_container_width=True, 
+            width='stretch', 
             hide_index=True
         )
 
@@ -208,7 +208,7 @@ elif page == "History":
         st.title("📜 Room History & Analytics")
     with col_refresh:
         st.markdown("<br>", unsafe_allow_html=True) # Align with title
-        if st.button("🔄 Refresh", use_container_width=True):
+        if st.button("🔄 Refresh", width='stretch'):
             st.cache_data.clear()
             st.rerun()
             
@@ -334,7 +334,7 @@ elif page == "History":
                     tooltip=['booked_by', 'category', 'count()' if 'duration_min' not in util_df.columns else 'sum(duration_min)']
                 ).properties(height=300)
                 
-                st.altair_chart(util_chart, use_container_width=True)
+                st.altair_chart(util_chart, width='stretch')
             else:
                 st.info("No logs available yet.")
 
@@ -357,7 +357,7 @@ elif page == "History":
                         tooltip=['status', 'count']
                     ).properties(height=300)
                     
-                    st.altair_chart(pie, use_container_width=True)
+                    st.altair_chart(pie, width='stretch')
 
             with col_b:
                 st.subheader("Quick Stats")
@@ -385,7 +385,7 @@ elif page == "History":
                 
                 st.dataframe(
                     display_df[existing_cols + other_cols], 
-                    use_container_width=True, 
+                    width='stretch', 
                     hide_index=True
                 )
             else:
@@ -408,7 +408,7 @@ elif page == "Manage Bookings":
                 start_time = st.time_input("Start Time", value=datetime.now().time())
                 duration = st.number_input("Duration (minutes)", min_value=15, max_value=480, value=60, step=15)
                 
-            submit = st.form_submit_button("Book Room", use_container_width=True)
+            submit = st.form_submit_button("Book Room", width='stretch')
             
             if submit:
                 if not title.strip() or not booked_by.strip():
@@ -481,7 +481,7 @@ elif page == "Calibration":
     calib_duration = st.number_input("Calibration Duration (seconds)", min_value=10, max_value=300, value=60, step=10)
 
     # ── Trigger calibration via MQTT ──
-    if st.button("Start Calibration", type="primary", use_container_width=True):
+    if st.button("Start Calibration", type="primary", width='stretch'):
         reset_calibration_state()
         success = publish_command({"command": "CALIBRATE", "duration": calib_duration})
         if success:
