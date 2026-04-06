@@ -93,15 +93,25 @@ uv run main.py
 ```
 *Note: On the first ever run, if `models/baseline.pkl` does not exist, the system will initialize a 60-second audio calibration period to baseline ambient room noise. Keep the room quiet during this!*
 
-### Running the Dashboard
-To launch the Streamlit frontend dashboard to monitor the room and trigger calibrations:
+### Running the Dashboard (Cloud / EC2)
+The Streamlit dashboard serves as the central hub for monitoring occupancy, bookings, and remote calibration.
+
+**When running on an AWS EC2 instance:**
+1. Ensure the Mosquitto MQTT broker is installed (`sudo apt install mosquitto`).
+2. Open **Port 1883 (TCP)** and **Port 8501 (TCP)** in your AWS Security Group.
+3. In `config.py` on the EC2, ensure `MQTT_BROKER_HOST = "localhost"`.
+4. Launch the dashboard:
 ```bash
 # Using uv (recommended)
 uv run streamlit run cloud/dashboard/app.py
-
-# Or using the local environment
-.venv\Scripts\streamlit run cloud/dashboard/app.py
 ```
+
+### Remote Calibration via Dashboard
+You no longer need to SSH into the Pi to calibrate the room! The Streamlit dashboard now includes a dedicated **Calibration** page. 
+- You can trigger a full calibration remotely.
+- The Pi agent receives the MQTT command, spins up a background thread to collect audio, and streams progress percentages back to the web UI.
+- Once complete, the baseline model is atomically saved and hot-reloaded by the Pi on the fly without interrupting the main loop.
+- The EC2 dashboard maintains a SQLite history table of all past calibration runs.
 
 ### Manual Calibration
 If you change feature extraction dimensions or need to force a recalibration, delete the `baseline.pkl` and manually run the calibration script from the project root:
@@ -114,9 +124,10 @@ uv run python -m anomaly.calibration
 .venv\Scripts\python -m anomaly.calibration
 ```
 
-### Raspberry Pi Deployment
+### Raspberry Pi Deployment (Edge Agent)
+When deploying the `main.py` agent to the physical room:
 1. Set `USE_PI_HARDWARE = True` in `config.py`.
-2. Configure `MQTT_BROKER_HOST` to the proper AWS EC2 instance IP.
+2. Configure `MQTT_BROKER_HOST` to the **public IP address of your EC2 instance** running the dashboard.
 3. Start the agent:
 ```bash
 .venv\Scripts\python main.py
