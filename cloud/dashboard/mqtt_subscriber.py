@@ -7,6 +7,8 @@ import os
 from datetime import datetime, timezone
 import boto3
 
+import re
+
 import database
 
 # Ensure config can be loaded if run from the project root or app boundary
@@ -43,6 +45,11 @@ calibration_state = {
     "status": "idle",   # idle | running | done | error
     "last_updated": "Never",
 }
+
+# Internal tracking for calibration history logging
+_calib_start_time = None
+_calib_samples = 0
+_calib_duration = 0
 
 def on_connect(client, userdata, flags, rc):
     """Callback fired when connected to MQTT Broker."""
@@ -115,6 +122,7 @@ def on_message(client, userdata, msg):
         # ── Calibration progress messages ──
         if msg.topic == MQTT_TOPIC_CALIB_PROGRESS:
             with _lock:
+                global _calib_start_time, _calib_samples, _calib_duration
                 progress = data.get("progress", 0)
                 message = data.get("message", "")
                 ts = data.get("timestamp", "Never")
@@ -123,10 +131,49 @@ def on_message(client, userdata, msg):
                 calibration_state["message"] = message
                 calibration_state["last_updated"] = ts
 
-                if progress < 0:
+                # Extract sample count from progress messages like "20% — 200 samples collected"
+                sample_match = re.search(r'(\d+)\s*samples', message)
+                if sample_match:
+                    _calib_samples = int(sample_match.group(1))
+
+                # Extract duration from the starting message
+                dur_match = re.search(r'for\s+(\d+)s', message)
+                if dur_match:
+                    _calib_duration = int(dur_match.group(1))
+
+                if progress <= 0 and "start" in message.lower():
+                    # Calibration just started
+                    _calib_start_time = datetime.now(timezone.utc)
+                    calibration_state["status"] = "running" if progress == 0 else "error"
+                elif progress < 0:
                     calibration_state["status"] = "error"
+                    # Log failed run
+                    if _calib_start_time:
+                        try:
+                            database.add_calibration_run(
+                                started_at=_calib_start_time.isoformat(),
+                                completed_at=datetime.now(timezone.utc).isoformat(),
+                                duration_s=_calib_duration,
+                                samples_collected=_calib_samples,
+                                status="error"
+                            )
+                        except Exception as db_err:
+                            logging.error(f"Failed to log calibration error to DB: {db_err}")
                 elif progress >= 100:
                     calibration_state["status"] = "done"
+                    # Log successful run to database
+                    if _calib_start_time:
+                        try:
+                            database.add_calibration_run(
+                                started_at=_calib_start_time.isoformat(),
+                                completed_at=datetime.now(timezone.utc).isoformat(),
+                                duration_s=_calib_duration,
+                                samples_collected=_calib_samples,
+                                status="success"
+                            )
+                            logging.info(f"Calibration run logged to DB: {_calib_samples} samples, {_calib_duration}s")
+                        except Exception as db_err:
+                            logging.error(f"Failed to log calibration to DB: {db_err}")
                 else:
                     calibration_state["status"] = "running"
 
@@ -171,11 +218,15 @@ def get_calibration_state():
 
 def reset_calibration_state():
     """Reset calibration state back to idle (call before starting a new run)."""
+    global _calib_start_time, _calib_samples, _calib_duration
     with _lock:
         calibration_state["progress"] = 0
         calibration_state["message"] = "Idle"
         calibration_state["status"] = "idle"
         calibration_state["last_updated"] = "Never"
+        _calib_start_time = None
+        _calib_samples = 0
+        _calib_duration = 0
 
 def publish_command(command_payload: dict):
     """

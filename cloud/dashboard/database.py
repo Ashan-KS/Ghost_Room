@@ -18,6 +18,16 @@ def init_db():
             end_time DATETIME NOT NULL
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS calibration_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at DATETIME NOT NULL,
+            completed_at DATETIME NOT NULL,
+            duration_s INTEGER NOT NULL,
+            samples_collected INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'success'
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -59,3 +69,33 @@ def delete_booking(booking_id):
     c.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
     conn.commit()
     conn.close()
+
+def add_calibration_run(started_at, completed_at, duration_s, samples_collected, status="success"):
+    """Logs a completed calibration run to the database."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO calibration_runs (started_at, completed_at, duration_s, samples_collected, status) VALUES (?, ?, ?, ?, ?)",
+        (started_at, completed_at, duration_s, samples_collected, status)
+    )
+    conn.commit()
+    conn.close()
+
+def get_calibration_runs():
+    """Retrieves all calibration runs, most recent first."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id, started_at, completed_at, duration_s, samples_collected, status FROM calibration_runs ORDER BY completed_at DESC")
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {
+            "id": r[0],
+            "started_at": r[1],
+            "completed_at": r[2],
+            "duration_s": r[3],
+            "samples_collected": r[4],
+            "status": r[5],
+        }
+        for r in rows
+    ]
