@@ -483,14 +483,17 @@ elif page == "Calibration":
     # Initialize session state for calibration tracking
     if "calib_triggered" not in st.session_state:
         st.session_state.calib_triggered = False
+    if "calib_done_shown" not in st.session_state:
+        st.session_state.calib_done_shown = False
 
     # ── Trigger calibration via MQTT ──
     if st.button("Start Calibration", type="primary", width='stretch'):
         reset_calibration_state()
+        st.session_state.calib_done_shown = False
         success = publish_command({"command": "CALIBRATE", "duration": calib_duration})
         if success:
             st.session_state.calib_triggered = True
-            st.rerun()  # Force rerun so the "waiting" state renders immediately
+            st.rerun()
         else:
             st.error("❌ Failed to send calibration command. Check MQTT broker connection.")
 
@@ -507,23 +510,49 @@ elif page == "Calibration":
         st.session_state.calib_triggered = False
 
     if calib_status == "running":
+        st.session_state.calib_done_shown = False
         st.progress(min(max(progress, 0), 100))
         st.markdown(f"**Status:** {message}")
-        # Auto-refresh while calibration is running to poll for updates
         st_autorefresh(interval=1000, key="calibration_autorefresh")
 
-    elif calib_status == "done":
-        st.progress(100)
-        st.success(f"✅ {message}")
+    elif calib_status == "done" and not st.session_state.calib_done_shown:
+        # Show success briefly, then auto-dismiss on next refresh
+        st.success("✅ Calibration complete! Baseline model updated successfully.")
+        st.session_state.calib_done_shown = True
+        st_autorefresh(interval=3000, limit=1, key="calibration_done_dismiss")
 
     elif calib_status == "error":
         st.error(f"❌ Calibration error: {message}")
 
     elif st.session_state.calib_triggered:
-        # We sent the command but the Pi hasn't responded yet — keep polling!
         st.info("📡 Calibration command sent. Waiting for the edge device to respond...")
         st_autorefresh(interval=1000, key="calibration_waiting_autorefresh")
 
     else:
         st.info("💤 No calibration in progress. Click above to start one.")
+
+    # ── Calibration History ──
+    st.markdown("---")
+    st.subheader("📋 Calibration History")
+
+    from database import get_calibration_runs
+    runs = get_calibration_runs()
+
+    if runs:
+        history_df = pd.DataFrame(runs)
+        history_df['started_at'] = pd.to_datetime(history_df['started_at'])
+        history_df['completed_at'] = pd.to_datetime(history_df['completed_at'])
+        history_df['Date'] = history_df['completed_at'].dt.strftime('%b %d, %Y')
+        history_df['Time'] = history_df['started_at'].dt.strftime('%I:%M %p') + ' \u2192 ' + history_df['completed_at'].dt.strftime('%I:%M %p')
+        history_df['Duration'] = history_df['duration_s'].apply(lambda s: f"{s}s")
+        history_df['Samples'] = history_df['samples_collected'].apply(lambda s: f"{s:,}")
+        history_df['Status'] = history_df['status'].apply(lambda s: "\u2705 Success" if s == "success" else "\u274c Failed")
+
+        st.dataframe(
+            history_df[['Date', 'Time', 'Duration', 'Samples', 'Status']],
+            width='stretch',
+            hide_index=True
+        )
+    else:
+        st.caption("No calibration runs recorded yet. Run your first calibration above!")
 
