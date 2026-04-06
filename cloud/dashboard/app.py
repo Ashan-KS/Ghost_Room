@@ -480,12 +480,17 @@ elif page == "Calibration":
 
     calib_duration = st.number_input("Calibration Duration (seconds)", min_value=10, max_value=300, value=60, step=10)
 
+    # Initialize session state for calibration tracking
+    if "calib_triggered" not in st.session_state:
+        st.session_state.calib_triggered = False
+
     # ── Trigger calibration via MQTT ──
     if st.button("Start Calibration", type="primary", width='stretch'):
         reset_calibration_state()
         success = publish_command({"command": "CALIBRATE", "duration": calib_duration})
         if success:
-            st.info("📡 Calibration command sent to the edge device. Waiting for progress...")
+            st.session_state.calib_triggered = True
+            st.rerun()  # Force rerun so the "waiting" state renders immediately
         else:
             st.error("❌ Failed to send calibration command. Check MQTT broker connection.")
 
@@ -497,10 +502,11 @@ elif page == "Calibration":
     progress = calib["progress"]
     message = calib["message"]
 
-    if calib_status == "idle":
-        st.info("💤 No calibration in progress. Click above to start one.")
+    # Once the backend responds, clear the "waiting" flag
+    if calib_status in ("running", "done", "error"):
+        st.session_state.calib_triggered = False
 
-    elif calib_status == "running":
+    if calib_status == "running":
         st.progress(min(max(progress, 0), 100))
         st.markdown(f"**Status:** {message}")
         # Auto-refresh while calibration is running to poll for updates
@@ -513,3 +519,12 @@ elif page == "Calibration":
 
     elif calib_status == "error":
         st.error(f"❌ Calibration error: {message}")
+
+    elif st.session_state.calib_triggered:
+        # We sent the command but the Pi hasn't responded yet — keep polling!
+        st.info("📡 Calibration command sent. Waiting for the edge device to respond...")
+        st_autorefresh(interval=1000, key="calibration_waiting_autorefresh")
+
+    else:
+        st.info("💤 No calibration in progress. Click above to start one.")
+

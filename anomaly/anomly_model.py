@@ -1,6 +1,8 @@
 import numpy as np
 import joblib
 import os
+import tempfile
+import logging
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 import config
@@ -13,6 +15,8 @@ _stat_std = None
 _stat_threshold = None
 _iso_threshold = None
 _model_mtime = 0
+
+log = logging.getLogger(__name__)
 
 # ML Fine-tuning parameters
 N_MFCC = 13
@@ -65,8 +69,21 @@ def train_and_save(X: np.ndarray):
         "stat_threshold": _stat_threshold,
         "iso_threshold": _iso_threshold
     }
-    os.makedirs(os.path.dirname(config.ANOMALY_MODEL_PATH), exist_ok=True)
-    joblib.dump(save_data, config.ANOMALY_MODEL_PATH)
+    # Atomic write: dump to a temp file first, then rename.
+    # This prevents the audio loop's hot-reload from reading a half-written pickle.
+    model_dir = os.path.dirname(config.ANOMALY_MODEL_PATH)
+    os.makedirs(model_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(suffix=".pkl", dir=model_dir)
+    os.close(fd)
+    try:
+        joblib.dump(save_data, tmp_path)
+        os.replace(tmp_path, config.ANOMALY_MODEL_PATH)  # atomic on same filesystem
+        log.info("baseline.pkl written atomically.")
+    except Exception:
+        # Clean up temp file on failure
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
 
 def load_model():
     global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold, _model_mtime
@@ -87,8 +104,12 @@ def get_anomaly_score(vec: np.ndarray) -> float:
     if os.path.exists(config.ANOMALY_MODEL_PATH):
         current_mtime = os.path.getmtime(config.ANOMALY_MODEL_PATH)
         if current_mtime > _model_mtime:
-            # Re-load if a new calibration file is detected
-            load_model()
+            try:
+                load_model()
+                log.info("Hot-reloaded baseline.pkl successfully.")
+            except Exception as e:
+                # File may still be mid-write; skip this cycle and retry next time
+                log.warning(f"Hot-reload skipped (file may be mid-write): {e}")
             
     # Ensure model loaded
     if _model is None or _scaler is None:
