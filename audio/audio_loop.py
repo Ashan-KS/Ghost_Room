@@ -18,8 +18,7 @@ from datetime import datetime, timezone
 import numpy as np
 import config
 from audio.vad_processor     import is_speech, get_audio_chunk
-from audio.feature_extractor import extract_features
-from anomaly.anomly_model    import get_anomaly_score
+from anomaly.anomly_model    import get_anomaly_score, extract_anomaly_features
 
 log = logging.getLogger(__name__)
 
@@ -59,7 +58,8 @@ def audio_loop():
                 speech_count += 1
 
             # ── 3. Anomaly ────────────────────────────────────────────────
-            feature_vector = extract_features(chunk)
+            samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+            feature_vector = extract_anomaly_features(samples)
             anomaly_score = get_anomaly_score(feature_vector)
             config.anomaly_queue.put({
                 "anomaly_score": float(anomaly_score),

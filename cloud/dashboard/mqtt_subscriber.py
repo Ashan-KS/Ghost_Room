@@ -16,11 +16,15 @@ try:
     MQTT_BROKER_HOST = config.MQTT_BROKER_HOST
     MQTT_BROKER_PORT = config.MQTT_BROKER_PORT
     MQTT_TOPIC_STATUS = config.MQTT_TOPIC_STATUS
+    MQTT_TOPIC_CMD = config.MQTT_TOPIC_CMD
+    MQTT_TOPIC_CALIB_PROGRESS = config.MQTT_TOPIC_CALIB_PROGRESS
 except ImportError:
     # Fallbacks if config.py is not available directly
     MQTT_BROKER_HOST = "localhost"
     MQTT_BROKER_PORT = 1883
     MQTT_TOPIC_STATUS = "room/A/status"
+    MQTT_TOPIC_CMD = "room/A/command"
+    MQTT_TOPIC_CALIB_PROGRESS = "room/A/calibration/progress"
 
 _client = None
 _lock = threading.Lock()
@@ -32,11 +36,20 @@ room_state = {
     "last_logged_status": None # Track transitions to avoid redundant S3 writes
 }
 
+# Calibration progress state (updated by MQTT messages from the Pi)
+calibration_state = {
+    "progress": 0,
+    "message": "Idle",
+    "status": "idle",   # idle | running | done | error
+    "last_updated": "Never",
+}
+
 def on_connect(client, userdata, flags, rc):
     """Callback fired when connected to MQTT Broker."""
     if rc == 0:
         logging.info(f"Connected to MQTT broker at {MQTT_BROKER_HOST}")
         client.subscribe(MQTT_TOPIC_STATUS)
+        client.subscribe(MQTT_TOPIC_CALIB_PROGRESS)
     else:
         logging.error(f"Failed to connect to MQTT broker, return code {rc}")
 
@@ -94,11 +107,33 @@ def _log_event_to_s3(room_id, status, timestamp):
 
 def on_message(client, userdata, msg):
     """Callback fired when a message arrives on a subscribed topic."""
-    global room_state
+    global room_state, calibration_state
     try:
         payload = msg.payload.decode()
         data = json.loads(payload)
-        
+
+        # ── Calibration progress messages ──
+        if msg.topic == MQTT_TOPIC_CALIB_PROGRESS:
+            with _lock:
+                progress = data.get("progress", 0)
+                message = data.get("message", "")
+                ts = data.get("timestamp", "Never")
+
+                calibration_state["progress"] = progress
+                calibration_state["message"] = message
+                calibration_state["last_updated"] = ts
+
+                if progress < 0:
+                    calibration_state["status"] = "error"
+                elif progress >= 100:
+                    calibration_state["status"] = "done"
+                else:
+                    calibration_state["status"] = "running"
+
+            logging.info(f"Calibration progress -> {progress}%: {message}")
+            return
+
+        # ── Room status messages ──
         status = data.get("status", "UNKNOWN")
         ts = data.get("timestamp", "Never")
         room_id = data.get("room", "A")
@@ -128,6 +163,36 @@ def get_current_state():
     """Returns a thread-safe copy of the current room state."""
     with _lock:
         return dict(room_state)
+
+def get_calibration_state():
+    """Returns a thread-safe copy of the current calibration progress."""
+    with _lock:
+        return dict(calibration_state)
+
+def reset_calibration_state():
+    """Reset calibration state back to idle (call before starting a new run)."""
+    with _lock:
+        calibration_state["progress"] = 0
+        calibration_state["message"] = "Idle"
+        calibration_state["status"] = "idle"
+        calibration_state["last_updated"] = "Never"
+
+def publish_command(command_payload: dict):
+    """
+    Publish a command to the Pi agent via MQTT.
+    e.g. publish_command({"command": "CALIBRATE", "duration": 60})
+    """
+    global _client
+    if _client is None:
+        logging.error("MQTT client not initialised — cannot publish command.")
+        return False
+    try:
+        _client.publish(MQTT_TOPIC_CMD, json.dumps(command_payload))
+        logging.info(f"Published command: {command_payload}")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to publish command: {e}")
+        return False
 
 def start_mqtt():
     """Initialises and starts the MQTT client loop on a background thread."""

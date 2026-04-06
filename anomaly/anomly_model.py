@@ -12,6 +12,7 @@ _stat_mean = None
 _stat_std = None
 _stat_threshold = None
 _iso_threshold = None
+_model_mtime = 0
 
 # ML Fine-tuning parameters
 N_MFCC = 13
@@ -21,7 +22,7 @@ ANOMALY_RANDOM_STATE = 42
 ANOMALY_PERCENTILE = 5
 
 
-def _extract_features(audio: np.ndarray, sr: int = config.AUDIO_SAMPLE_RATE) -> np.ndarray:
+def extract_anomaly_features(audio: np.ndarray, sr: int = config.AUDIO_SAMPLE_RATE) -> np.ndarray:
     """
     Extract features from audio vector: 13 MFCC means, 13 MFCC stds, energy, ZCR.
     Returns vector of shape (28,).
@@ -68,7 +69,7 @@ def train_and_save(X: np.ndarray):
     joblib.dump(save_data, config.ANOMALY_MODEL_PATH)
 
 def load_model():
-    global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold
+    global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold, _model_mtime
     data = joblib.load(config.ANOMALY_MODEL_PATH)
     _model        = data["isoforest"]
     _scaler       = data["scaler"]
@@ -76,9 +77,19 @@ def load_model():
     _stat_std     = data["stat_std"]
     _stat_threshold = data["stat_threshold"]
     _iso_threshold  = data["iso_threshold"]
+    if os.path.exists(config.ANOMALY_MODEL_PATH):
+        _model_mtime = os.path.getmtime(config.ANOMALY_MODEL_PATH)
 
 def get_anomaly_score(vec: np.ndarray) -> float:
-    global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold
+    global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold, _model_mtime
+    
+    # Hot-reload if the file was modified
+    if os.path.exists(config.ANOMALY_MODEL_PATH):
+        current_mtime = os.path.getmtime(config.ANOMALY_MODEL_PATH)
+        if current_mtime > _model_mtime:
+            # Re-load if a new calibration file is detected
+            load_model()
+            
     # Ensure model loaded
     if _model is None or _scaler is None:
         load_model()

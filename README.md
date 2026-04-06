@@ -88,8 +88,31 @@ To run the full system locally without deploying to AWS:
 
 ```bash
 .venv\Scripts\python main.py
+# Or using uv:
+uv run main.py
 ```
 *Note: On the first ever run, if `models/baseline.pkl` does not exist, the system will initialize a 60-second audio calibration period to baseline ambient room noise. Keep the room quiet during this!*
+
+### Running the Dashboard
+To launch the Streamlit frontend dashboard to monitor the room and trigger calibrations:
+```bash
+# Using uv (recommended)
+uv run streamlit run cloud/dashboard/app.py
+
+# Or using the local environment
+.venv\Scripts\streamlit run cloud/dashboard/app.py
+```
+
+### Manual Calibration
+If you change feature extraction dimensions or need to force a recalibration, delete the `baseline.pkl` and manually run the calibration script from the project root:
+
+```bash
+# Using uv (recommended)
+uv run python -m anomaly.calibration
+
+# Or using the local environment
+.venv\Scripts\python -m anomaly.calibration
+```
 
 ### Raspberry Pi Deployment
 1. Set `USE_PI_HARDWARE = True` in `config.py`.
@@ -97,6 +120,8 @@ To run the full system locally without deploying to AWS:
 3. Start the agent:
 ```bash
 .venv\Scripts\python main.py
+# Or using uv:
+uv run main.py
 ```
 
 To run as a systemd service (auto-starts on boot):

@@ -13,7 +13,7 @@ from streamlit_autorefresh import st_autorefresh
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from database import init_db, add_booking, get_bookings, delete_booking
-from mqtt_subscriber import start_mqtt, get_current_state
+from mqtt_subscriber import start_mqtt, get_current_state, get_calibration_state, reset_calibration_state, publish_command
 import config
 
 # ==========================================================
@@ -39,18 +39,21 @@ st.set_page_config(
 # ==========================================================
 st.sidebar.title("👻 Ghost Room")
 st.sidebar.markdown("---")
-page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings", "History"])
+page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings", "History", "Calibration"])
 st.sidebar.markdown("---")
 auto_refresh = st.sidebar.checkbox("Enable Auto-Refresh (Live Sync)", value=True)
-s3_demo_mode = st.sidebar.checkbox("S3 Demo Mode (Mock Data)", value=False, help="Show sample charts without S3 connection.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🛠️ Developer Tools")
 local_test_mode = st.sidebar.toggle("Enable Local Test Mode", help="Use manual data instead of MQTT for testing.")
 
+s3_demo_mode = False
 if local_test_mode:
+    s3_demo_mode = st.sidebar.checkbox("S3 Demo Mode (Mock Data)", value=False, help="Show sample charts without S3 connection.")
     mock_status = st.sidebar.radio("Mock Room Status", ["EMPTY", "IN_USE", "UNKNOWN"], index=0)
     mock_last_updated = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+
+
 
 # ==========================================================
 # Page: Dashboard
@@ -214,8 +217,8 @@ elif page == "History":
     @st.cache_data(ttl=300)
     def fetch_s3_history(force_demo=False):
         """Fetches and parses JSON logs from the S3 bucket or returns mock data."""
-        # Use demo mode if the toggle is ON OR if S3 is disabled in the global config
-        use_mock = force_demo or not getattr(config, 'ENABLE_S3_LOGGING', True)
+        # Only use mock data if the user explicitly enabled S3 Demo Mode
+        use_mock = force_demo
         
         if use_mock:
             # Generate 30 mock events for a "full day" visualization
@@ -244,6 +247,9 @@ elif page == "History":
                 })
             return pd.DataFrame(mock_data)
 
+        # If S3 logging is disabled, don't attempt to connect — just return empty
+        if not getattr(config, 'ENABLE_S3_LOGGING', True):
+            return pd.DataFrame()
 
         try:
             s3 = boto3.client('s3')
@@ -461,3 +467,49 @@ elif page == "Manage Bookings":
                 st.divider()
     else:
         st.info("No bookings found in the database.")
+
+# ==========================================================
+# Page: Calibration
+# ==========================================================
+elif page == "Calibration":
+    st.title("🎛️ Anomaly Model Calibration")
+    st.markdown("Run environmental audio calibration to establish a baseline for anomaly detection.")
+    st.markdown("The calibration runs **on the edge device** (Raspberry Pi / local machine) and streams progress back here via MQTT.")
+
+    st.warning("⚠️ Please ensure the room is completely empty and quiet during calibration.")
+
+    calib_duration = st.number_input("Calibration Duration (seconds)", min_value=10, max_value=300, value=60, step=10)
+
+    # ── Trigger calibration via MQTT ──
+    if st.button("Start Calibration", type="primary", use_container_width=True):
+        reset_calibration_state()
+        success = publish_command({"command": "CALIBRATE", "duration": calib_duration})
+        if success:
+            st.info("📡 Calibration command sent to the edge device. Waiting for progress...")
+        else:
+            st.error("❌ Failed to send calibration command. Check MQTT broker connection.")
+
+    st.markdown("---")
+
+    # ── Live progress display (polls MQTT state) ──
+    calib = get_calibration_state()
+    calib_status = calib["status"]
+    progress = calib["progress"]
+    message = calib["message"]
+
+    if calib_status == "idle":
+        st.info("💤 No calibration in progress. Click above to start one.")
+
+    elif calib_status == "running":
+        st.progress(min(max(progress, 0), 100))
+        st.markdown(f"**Status:** {message}")
+        # Auto-refresh while calibration is running to poll for updates
+        st_autorefresh(interval=1000, key="calibration_autorefresh")
+
+    elif calib_status == "done":
+        st.progress(100)
+        st.success(f"✅ {message}")
+        st.balloons()
+
+    elif calib_status == "error":
+        st.error(f"❌ Calibration error: {message}")

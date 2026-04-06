@@ -90,11 +90,50 @@ def _handle_command(payload: str):
         elif cmd == "UNLOCK":
             log.info("Maintenance lock released.")
             release_lock()
+        elif cmd == "CALIBRATE":
+            duration = data.get("duration", config.CALIBRATION_DURATION_S)
+            log.info(f"Calibration command received — duration={duration}s")
+            _start_calibration(duration)
         else:
             log.warning(f"Unknown command: {cmd}")
 
     except Exception as e:
         log.error(f"Command handling error: {e}")
+
+
+def _publish_calibration_progress(progress: int, message: str):
+    """Callback passed to run_calibration(); publishes progress via MQTT."""
+    payload = json.dumps({
+        "room":     config.ROOM_ID,
+        "progress": progress,
+        "message":  message,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    client = _get_client()
+    if client:
+        client.publish(config.MQTT_TOPIC_CALIB_PROGRESS, payload)
+        log.info(f"Calibration progress published: {progress}% — {message}")
+
+
+def _start_calibration(duration: int):
+    """Run calibration in a background thread so the MQTT loop stays alive."""
+    import threading
+    from anomaly.calibration import run_calibration
+
+    def _run():
+        try:
+            _publish_calibration_progress(0, "Calibration starting...")
+            run_calibration(
+                duration_s=duration,
+                progress_callback=_publish_calibration_progress,
+            )
+        except Exception as e:
+            log.error(f"Calibration thread error: {e}")
+            _publish_calibration_progress(-1, f"ERROR: {e}")
+
+    t = threading.Thread(target=_run, name="CalibrationThread", daemon=True)
+    t.start()
+    log.info("Calibration thread spawned.")
 
 
 def cloud_publisher():
@@ -104,3 +143,4 @@ def cloud_publisher():
     import time
     while True:
         time.sleep(5)
+

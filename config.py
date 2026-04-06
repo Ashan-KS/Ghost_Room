@@ -50,7 +50,7 @@ FRAME_SIZE        = (300, 300)
 # ── Audio settings ────────────────────────────────────────────────────────────
 AUDIO_SAMPLE_RATE = 16000   # Hz — required by webrtcvad
 AUDIO_CHUNK_MS    = 30      # ms per VAD frame (10, 20, or 30 only)
-AUDIO_DEVICE_INDEX = None   # None = system default; set to USB mic index on Pi
+VAD_MODE          = 2       # 0=least aggressive, 3=most aggressive
 AUDIO_DEVICE_INDEX = None   # None = system default; set to USB mic index on Pi
 CALIBRATION_DURATION_S = 60    # seconds of empty-room recording for calibration
 AUDIO_LOG_STATS_INTERVAL_S = 5    # Frequency of audio loop stats logging
@@ -65,6 +65,7 @@ MQTT_BROKER_HOST  = "localhsot"
 MQTT_BROKER_PORT  = 1883
 MQTT_TOPIC_STATUS = "room/A/status"     # Pi publishes here
 MQTT_TOPIC_CMD    = "room/A/command"    # Pi subscribes here (for maintenance lock)
+MQTT_TOPIC_CALIB_PROGRESS = "room/A/calibration/progress"  # Pi publishes calibration progress here
 ROOM_ID           = "A"
 
 # ── AWS S3 ────────────────────────────────────────────────────────────────────

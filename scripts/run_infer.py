@@ -24,7 +24,7 @@ def listen_and_detect(anomaly_queue: queue.Queue, stop_event: threading.Event):
             if np.max(np.abs(audio)) > 0:
                 audio = audio / np.max(np.abs(audio))
 
-            feat = anomly_model._extract_features(audio)
+            feat = anomly_model.extract_anomaly_features(audio)
             anomaly_score = anomly_model.get_anomaly_score(feat)
             ts = datetime.now().isoformat(timespec="seconds")
 

@@ -24,7 +24,7 @@ def main():
         for i in range(0, len(audio), chunk_len)
         if len(audio[i:i + chunk_len]) == chunk_len
     ]
-    X = np.array([anomly_model._extract_features(c) for c in chunks])
+    X = np.array([anomly_model.extract_anomaly_features(c) for c in chunks])
     print(f"Extracted {len(X)} feature vectors of shape {X.shape[1:]}")
     anomly_model.train_and_save(X)
     print(f"Model calibrated and saved to {config.ANOMALY_MODEL_PATH}")
