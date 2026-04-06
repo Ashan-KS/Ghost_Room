@@ -515,7 +515,6 @@ elif page == "Calibration":
     elif calib_status == "done":
         st.progress(100)
         st.success(f"✅ {message}")
-        st.balloons()
 
     elif calib_status == "error":
         st.error(f"❌ Calibration error: {message}")

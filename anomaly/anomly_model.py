@@ -43,31 +43,34 @@ def extract_anomaly_features(audio: np.ndarray, sr: int = config.AUDIO_SAMPLE_RA
     return features.astype(np.float32)
 
 def train_and_save(X: np.ndarray):
-    global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold
+    # Use LOCAL variables for all training work so the audio loop's
+    # concurrent reads of the globals are never corrupted mid-train.
+    # The globals are only swapped atomically via load_model() at the end.
+
     # Statistical baseline
-    _stat_mean = np.mean(X, axis=0)
-    _stat_std = np.std(X, axis=0)
-    stat_scores = np.mean(np.abs((X - _stat_mean) / (_stat_std + 1e-6)), axis=1)
-    _stat_threshold = np.mean(stat_scores) + 3 * np.std(stat_scores)
+    stat_mean = np.mean(X, axis=0)
+    stat_std = np.std(X, axis=0)
+    stat_scores = np.mean(np.abs((X - stat_mean) / (stat_std + 1e-6)), axis=1)
+    stat_threshold = np.mean(stat_scores) + 3 * np.std(stat_scores)
 
     # Scaler for IsolationForest compatibility
-    _scaler = StandardScaler()
-    X_scaled = _scaler.fit_transform(X)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
 
     # IsolationForest
-    _model = IsolationForest(contamination=ANOMALY_CONTAMINATION, random_state=ANOMALY_RANDOM_STATE)
-    _model.fit(X_scaled)
-    scores = _model.decision_function(X_scaled)
-    _iso_threshold = np.percentile(scores, ANOMALY_PERCENTILE)
+    model = IsolationForest(contamination=ANOMALY_CONTAMINATION, random_state=ANOMALY_RANDOM_STATE)
+    model.fit(X_scaled)
+    scores = model.decision_function(X_scaled)
+    iso_threshold = np.percentile(scores, ANOMALY_PERCENTILE)
 
     # Save everything needed for inference
     save_data = {
-        "isoforest": _model,
-        "scaler": _scaler,
-        "stat_mean": _stat_mean,
-        "stat_std": _stat_std,
-        "stat_threshold": _stat_threshold,
-        "iso_threshold": _iso_threshold
+        "isoforest": model,
+        "scaler": scaler,
+        "stat_mean": stat_mean,
+        "stat_std": stat_std,
+        "stat_threshold": stat_threshold,
+        "iso_threshold": iso_threshold
     }
     # Atomic write: dump to a temp file first, then rename.
     # This prevents the audio loop's hot-reload from reading a half-written pickle.
@@ -83,6 +86,7 @@ def train_and_save(X: np.ndarray):
         # Clean up temp file on failure
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+
         raise
 
 def load_model():
