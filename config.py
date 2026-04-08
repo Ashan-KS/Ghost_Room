@@ -66,6 +66,7 @@ MQTT_BROKER_PORT  = 1883
 MQTT_TOPIC_STATUS = "room/A/status"     # Pi publishes here
 MQTT_TOPIC_CMD    = "room/A/command"    # Pi subscribes here (for maintenance lock)
 MQTT_TOPIC_CALIB_PROGRESS = "room/A/calibration/progress"  # Pi publishes calibration progress here
+MQTT_TOPIC_MONITOR_STATUS = "room/A/monitoring/status"     # Pi publishes monitoring run-state here
 ROOM_ID           = "A"
 
 # ── AWS S3 ────────────────────────────────────────────────────────────────────

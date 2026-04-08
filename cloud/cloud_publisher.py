@@ -78,6 +78,20 @@ def publish_state(state: str):
     set_room_state(state)
 
 
+def _publish_monitoring_status(running: bool, message: str = ""):
+    """Publish the current monitoring run-state to the dashboard."""
+    payload = json.dumps({
+        "room":      config.ROOM_ID,
+        "running":   running,
+        "message":   message,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    client = _get_client()
+    if client:
+        client.publish(config.MQTT_TOPIC_MONITOR_STATUS, payload, retain=True)
+        log.info(f"Monitoring status published: running={running}")
+
+
 def _handle_command(payload: str):
     """Handle incoming command from the cloud dashboard."""
     try:
@@ -96,6 +110,16 @@ def _handle_command(payload: str):
             duration = data.get("duration", config.CALIBRATION_DURATION_S)
             log.info(f"Calibration command received — duration={duration}s")
             _start_calibration(duration)
+        elif cmd == "START_MONITORING":
+            log.info("START_MONITORING command received.")
+            import main as agent
+            agent.start_monitoring()
+            _publish_monitoring_status(True, "Monitoring started via dashboard.")
+        elif cmd == "STOP_MONITORING":
+            log.info("STOP_MONITORING command received.")
+            import main as agent
+            agent.stop_monitoring()
+            _publish_monitoring_status(False, "Monitoring stopped via dashboard.")
         else:
             log.warning(f"Unknown command: {cmd}")
 
@@ -142,7 +166,12 @@ def cloud_publisher():
     """Thread target — keeps MQTT loop alive."""
     log.info("Cloud publisher started.")
     _get_client()
+
+    # Publish initial monitoring state so the dashboard knows we're active
+    import time as _time
+    _time.sleep(2)  # Give MQTT a moment to fully connect
+    _publish_monitoring_status(True, "Agent booted — monitoring active.")
+
     import time
     while True:
         time.sleep(5)
-

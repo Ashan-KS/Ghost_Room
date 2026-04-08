@@ -13,7 +13,7 @@ from streamlit_autorefresh import st_autorefresh
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from database import init_db, add_booking, get_bookings, delete_booking
-from mqtt_subscriber import start_mqtt, get_current_state, get_calibration_state, reset_calibration_state, publish_command
+from mqtt_subscriber import start_mqtt, get_current_state, get_calibration_state, reset_calibration_state, publish_command, get_monitoring_state
 import config
 
 # ==========================================================
@@ -81,33 +81,94 @@ if page == "Dashboard":
         except Exception:
             pass # fallback to original string
         
+    # ── Current monitoring state from MQTT ──
+    mon = get_monitoring_state()
+    mon_running = mon["running"]
+    mon_message = mon["message"]
+    mon_updated = mon["last_updated"]
+
+    try:
+        if mon_updated and mon_updated != "Never":
+            dt_mon = datetime.fromisoformat(mon_updated.replace("Z", "+00:00"))
+            mon_updated = dt_mon.strftime("%Y-%m-%d %I:%M %p")
+    except Exception:
+        pass
+
+    # ── Row 1: Edge Agent ──
+    with st.container(border=True):
+        st.subheader("🛡️ Edge Agent Monitoring", help="Controls the occupancy detection sensors (camera, audio, anomaly).")
+        e1, e2 = st.columns([3, 1])
+        
+        with e1:
+            if mon_running is True:
+                st.success("🟢 Status: **RUNNING**", icon="🟢")
+            elif mon_running is False:
+                st.error("🔴 Status: **STOPPED**", icon="🔴")
+            else:
+                st.warning("🟡 Status: **UNKNOWN**", icon="🟡")
+                
+            if mon_message:
+                st.caption(f"Info: {mon_message}")
+            else:
+                st.caption(f"Last Updated: {mon_updated}")
+                
+        with e2:
+            st.write("") # spacing push down to align
+            if mon_running is True:
+                if st.button("⏹️ Stop Sensors", type="secondary", use_container_width=True):
+                    if publish_command({"command": "STOP_MONITORING"}):
+                        time.sleep(1)
+                        st.rerun()
+            elif mon_running is False:
+                if st.button("▶️ Start Sensors", type="primary", use_container_width=True):
+                    if publish_command({"command": "START_MONITORING"}):
+                        time.sleep(1)
+                        st.rerun()
+            else:
+                bc1, bc2 = st.columns(2)
+                with bc1:
+                    if st.button("▶️ Start", use_container_width=True):
+                        if publish_command({"command": "START_MONITORING"}):
+                            time.sleep(1)
+                            st.rerun()
+                with bc2:
+                    if st.button("⏹️ Stop", use_container_width=True):
+                        if publish_command({"command": "STOP_MONITORING"}):
+                            time.sleep(1)
+                            st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Row 2: Occupancy & Booking Overview ──
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.subheader("Current Occupancy")
-        if status == "IN_USE":
-            st.error("🔴 IN USE", icon="🔴")
-            st.caption(f"Last Updated: {last_updated}")
-        elif status == "EMPTY":
-            st.success("🟢 AVAILABLE", icon="🟢")
-            st.caption(f"Last Updated: {last_updated}")
-        else:
-            st.warning(f"🟡 {status}", icon="🟡")
-            st.caption(f"Last Updated: {last_updated}")
-        
-    with col2:
-        st.subheader("Booking Overview")
-        bookings = get_bookings()
-        today = datetime.now().date()
-        today_df = pd.DataFrame()
-        
-        if bookings:
-            df = pd.DataFrame(bookings)
-            df['start_time'] = pd.to_datetime(df['start_time'])
-            today_df = df[df['start_time'].dt.date == today]
+        with st.container(border=True):
+            st.subheader("Current Occupancy")
+            if status == "IN_USE":
+                st.error("🔴 IN USE", icon="🔴")
+                st.caption(f"Last Updated: {last_updated}")
+            elif status == "EMPTY":
+                st.success("🟢 AVAILABLE", icon="🟢")
+                st.caption(f"Last Updated: {last_updated}")
+            else:
+                st.warning(f"🟡 {status}", icon="🟡")
+                st.caption(f"Last Updated: {last_updated}")
             
-        today_count = len(today_df)
-        st.metric("Meetings Scheduled Today", f"📅 {today_count}")
+    with col2:
+        with st.container(border=True):
+            st.subheader("Booking Overview")
+            bookings = get_bookings()
+            today = datetime.now().date()
+            today_df = pd.DataFrame()
+            
+            if bookings:
+                df = pd.DataFrame(bookings)
+                df['start_time'] = pd.to_datetime(df['start_time'])
+                today_df = df[df['start_time'].dt.date == today]
+                
+            today_count = len(today_df)
+            st.metric("Meetings Scheduled Today", f"📅 {today_count}")
 
     st.markdown("<br>", unsafe_allow_html=True)
     
@@ -284,120 +345,117 @@ elif page == "History":
     if history_df.empty:
         st.info("No logs found in S3 yet. History will appear once events are recorded.")
     else:
-        # ── Metrics ──
-        total_events = len(history_df)
-        ghost_events = len(history_df[history_df['event_type'] == 'GHOST_DETECTION']) if 'event_type' in history_df.columns else 0
-        
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Total Events Logged", total_events)
-        m2.metric("Ghost Bookings Detected", ghost_events, delta=f"{ghost_events} alerts", delta_color="inverse")
-        
-        if ghost_events > 0 and 'booked_by' in history_df.columns:
-            # Filter for ghost events before finding mode
-            ghost_df = history_df[history_df['event_type'] == 'GHOST_DETECTION']
-            if not ghost_df.empty:
-                top_offender = ghost_df['booked_by'].mode()[0]
-                m3.metric("Top 'Ghost' Organizer", top_offender)
+        # ── KPI Metrics Card ──
+        with st.container(border=True):
+            st.subheader("📊 Key Performance Indicators")
+            total_events = len(history_df)
+            ghost_events = len(history_df[history_df['event_type'] == 'GHOST_DETECTION']) if 'event_type' in history_df.columns else 0
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Total Events Logged", total_events)
+            m2.metric("Ghost Bookings Detected", ghost_events, delta=f"{ghost_events} alerts", delta_color="inverse")
+            
+            if ghost_events > 0 and 'booked_by' in history_df.columns:
+                ghost_df = history_df[history_df['event_type'] == 'GHOST_DETECTION']
+                if not ghost_df.empty:
+                    top_offender = ghost_df['booked_by'].mode()[0]
+                    m3.metric("Top 'Ghost' Organizer", top_offender)
+                else:
+                    m3.metric("Top 'Ghost' Organizer", "N/A")
             else:
                 m3.metric("Top 'Ghost' Organizer", "N/A")
-        else:
-            m3.metric("Top 'Ghost' Organizer", "N/A")
-
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # ── Visualization ──
-        tab1, tab2 = st.tabs(["📊 Analytics Dashboard", "📅 Detailed Event Audit"])
-        
-        with tab1:
-            # 1. Room Utilization by Organizer (Stacked Bar)
-            st.subheader("Room Utilization by Organizer (Today)")
-            if not history_df.empty:
-                # Prepare utilization data
-                util_df = history_df.copy()
-                # Categorize into In Use, Not In Use, Ghost
-                def categorize(row):
-                    if row['event_type'] == 'GHOST_DETECTION': return 'GHOST_BOOKING'
-                    if row['status'] == 'IN_USE': return 'IN_USE'
-                    return 'NOT_IN_USE'
-                
-                util_df['category'] = util_df.apply(categorize, axis=1)
-                
-                # Chart: Show duration (count in mock) per organizer
-                util_chart = alt.Chart(util_df).mark_bar().encode(
-                    x=alt.X('sum(duration_min):Q' if 'duration_min' in util_df.columns else 'count():Q', title='Total Minutes / Events'),
-                    y=alt.Y('booked_by:N', title='Organizer', sort='-x'),
-                    color=alt.Color('category:N', scale=alt.Scale(
-                        domain=['IN_USE', 'NOT_IN_USE', 'GHOST_BOOKING'],
-                        range=['#4CAF50', '#9E9E9E', '#FF4B4B'] # Green, Grey, Red
-                    ), title='Room State'),
-                    tooltip=['booked_by', 'category', 'count()' if 'duration_min' not in util_df.columns else 'sum(duration_min)']
-                ).properties(height=300)
-                
-                st.altair_chart(util_chart, width='stretch')
-            else:
-                st.info("No logs available yet.")
-
-            st.markdown("---")
+        # ── Visualization & Audit Explorer ──
+        with st.container(border=True):
+            tab1, tab2 = st.tabs(["📉 Analytics Dashboard", "📅 Detailed Event Audit"])
             
-            # 2. Distribution Donut Chart
-            col_a, col_b = st.columns([1, 1])
-            with col_a:
-                st.subheader("Total Time Distribution")
+            with tab1:
+                # 1. Room Utilization by Organizer (Stacked Bar)
+                st.subheader("Room Utilization by Organizer")
                 if not history_df.empty:
-                    dist_df = util_df['category'].value_counts().reset_index()
-                    dist_df.columns = ['status', 'count']
+                    util_df = history_df.copy()
+                    def categorize(row):
+                        if row['event_type'] == 'GHOST_DETECTION': return 'GHOST_BOOKING'
+                        if row['status'] == 'IN_USE': return 'IN_USE'
+                        return 'NOT_IN_USE'
                     
-                    pie = alt.Chart(dist_df).mark_arc(innerRadius=60).encode(
-                        theta=alt.Theta(field="count", type="quantitative"),
-                        color=alt.Color(field="status", type="nominal", scale=alt.Scale(
+                    util_df['category'] = util_df.apply(categorize, axis=1)
+                    
+                    util_chart = alt.Chart(util_df).mark_bar().encode(
+                        x=alt.X('sum(duration_min):Q' if 'duration_min' in util_df.columns else 'count():Q', title='Total Minutes / Events'),
+                        y=alt.Y('booked_by:N', title='Organizer', sort='-x'),
+                        color=alt.Color('category:N', scale=alt.Scale(
                             domain=['IN_USE', 'NOT_IN_USE', 'GHOST_BOOKING'],
                             range=['#4CAF50', '#9E9E9E', '#FF4B4B']
-                        )),
-                        tooltip=['status', 'count']
+                        ), title='Room State'),
+                        tooltip=['booked_by', 'category', 'count()' if 'duration_min' not in util_df.columns else 'sum(duration_min)']
                     ).properties(height=300)
                     
-                    st.altair_chart(pie, width='stretch')
+                    st.altair_chart(util_chart, width='stretch')
+                else:
+                    st.info("No logs available yet.")
 
-            with col_b:
-                st.subheader("Quick Stats")
-                total_min = util_df['duration_min'].sum() if 'duration_min' in util_df.columns else len(util_df)
-                ghost_min = util_df[util_df['category'] == 'GHOST_BOOKING']['duration_min'].sum() if 'duration_min' in util_df.columns else len(util_df[util_df['category'] == 'GHOST_BOOKING'])
-                efficiency = (1 - (ghost_min / total_min)) * 100 if total_min > 0 else 0
+                st.divider()
                 
-                st.metric("Room Efficiency Score", f"{efficiency:.1f}%")
-                st.write("Efficiency is calculated based on the ratio of actual usage vs ghosted slots.")
-                st.markdown(f"**Total Tracked Time:** {total_min} mins" if 'duration_min' in util_df.columns else f"**Total Events:** {total_min}")
+                # 2. Distribution Donut Chart & Efficiency Stats
+                col_a, col_b = st.columns([1, 1])
+                with col_a:
+                    st.subheader("Total Time Distribution")
+                    if not history_df.empty:
+                        dist_df = util_df['category'].value_counts().reset_index()
+                        dist_df.columns = ['status', 'count']
+                        
+                        pie = alt.Chart(dist_df).mark_arc(innerRadius=60).encode(
+                            theta=alt.Theta(field="count", type="quantitative"),
+                            color=alt.Color(field="status", type="nominal", scale=alt.Scale(
+                                domain=['IN_USE', 'NOT_IN_USE', 'GHOST_BOOKING'],
+                                range=['#4CAF50', '#9E9E9E', '#FF4B4B']
+                            )),
+                            tooltip=['status', 'count']
+                        ).properties(height=300)
+                        
+                        st.altair_chart(pie, width='stretch')
 
-        with tab2:
-            st.subheader("Detailed Event Audit")
-            if not history_df.empty:
-                # Format timestamps for readability in the table
-                display_df = history_df.copy()
-                if 'logged_at' in display_df.columns:
-                    # Keep a string version for display
-                    display_df['time'] = pd.to_datetime(display_df['logged_at']).dt.strftime('%b %d, %H:%M:%S')
-                
-                # Reorder columns to put important info first
-                cols = ['time', 'event_type', 'status', 'booked_by', 'title'] # Changed 'meeting_title' to 'title'
-                existing_cols = [c for c in cols if c in display_df.columns]
-                other_cols = [c for c in display_df.columns if c not in existing_cols]
-                
-                st.dataframe(
-                    display_df[existing_cols + other_cols], 
-                    width='stretch', 
-                    hide_index=True
-                )
-            else:
-                st.write("No data available to display in the audit log.")
+                with col_b:
+                    st.subheader("Quick Stats")
+                    total_min = util_df['duration_min'].sum() if 'duration_min' in util_df.columns else len(util_df)
+                    ghost_min = util_df[util_df['category'] == 'GHOST_BOOKING']['duration_min'].sum() if 'duration_min' in util_df.columns else len(util_df[util_df['category'] == 'GHOST_BOOKING'])
+                    efficiency = (1 - (ghost_min / total_min)) * 100 if total_min > 0 else 0
+                    
+                    st.metric("Room Efficiency Score", f"{efficiency:.1f}%")
+                    st.write("Efficiency is calculated based on the ratio of actual usage vs ghosted slots.")
+                    st.markdown(f"**Total Tracked Time:** {total_min} mins" if 'duration_min' in util_df.columns else f"**Total Events:** {total_min}")
+
+            with tab2:
+                st.subheader("Detailed Event Audit")
+                if not history_df.empty:
+                    display_df = history_df.copy()
+                    if 'logged_at' in display_df.columns:
+                        display_df['time'] = pd.to_datetime(display_df['logged_at']).dt.strftime('%b %d, %H:%M:%S')
+                    
+                    cols = ['time', 'event_type', 'status', 'booked_by', 'title']
+                    existing_cols = [c for c in cols if c in display_df.columns]
+                    other_cols = [c for c in display_df.columns if c not in existing_cols]
+                    
+                    st.dataframe(
+                        display_df[existing_cols + other_cols], 
+                        width='stretch', 
+                        hide_index=True
+                    )
+                else:
+                    st.write("No data available to display in the audit log.")
+
 # ==========================================================
 # Page: Manage Bookings
 # ==========================================================
 elif page == "Manage Bookings":
     st.title("🗓️ Manage Room Bookings")
     
-    # ── Add New Booking ──
-    with st.expander("➕ **Add a New Booking**", expanded=False):
+    # ── Add New Booking Card ──
+    with st.container(border=True):
+        st.subheader("➕ Add a New Booking")
         with st.form("new_booking_form"):
             col1, col2 = st.columns(2)
             with col1:
@@ -408,7 +466,7 @@ elif page == "Manage Bookings":
                 start_time = st.time_input("Start Time", value=datetime.now().time())
                 duration = st.number_input("Duration (minutes)", min_value=15, max_value=480, value=60, step=15)
                 
-            submit = st.form_submit_button("Book Room", width='stretch')
+            submit = st.form_submit_button("Book Room", type="primary", use_container_width=True)
             
             if submit:
                 if not title.strip() or not booked_by.strip():
@@ -424,61 +482,60 @@ elif page == "Manage Bookings":
                         end_dt.strftime('%Y-%m-%d %H:%M:%S')
                     )
                     st.success(f"Successfully booked '{title}' on {start_dt.strftime('%b %d')} at {start_dt.strftime('%I:%M %p')}")
-                    
-                    # Pause briefly so user can read message before rerunning list
                     time.sleep(1.5)
                     st.rerun()
                     
     st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("Upcoming Schedule")
     
-    # ── Upcoming Bookings List ──
-    bookings = get_bookings()
-    if bookings:
-        df = pd.DataFrame(bookings)
-        df['start_time'] = pd.to_datetime(df['start_time'])
-        df['end_time'] = pd.to_datetime(df['end_time'])
-        
-        today = datetime.now().date()
-        future_df = df[df['start_time'].dt.date >= today].copy()
-        future_df = future_df.sort_values(by='start_time')
-        
-        if future_df.empty:
-            st.info("No upcoming bookings found.")
-        else:
-            for index, row in future_df.iterrows():
-                # Format visually
-                dt_str = row['start_time'].strftime('%A, %B %d, %Y')
-                time_str = f"{row['start_time'].strftime('%I:%M %p')} - {row['end_time'].strftime('%I:%M %p')}"
+    # ── Upcoming Schedule Feed ──
+    with st.container(border=True):
+        col_title, col_refresh = st.columns([5, 1])
+        with col_title:
+            st.subheader("📅 Upcoming Schedule")
+        with col_refresh:
+            if st.button("🔄 Refresh", use_container_width=True):
+                st.rerun()
                 
-                with st.container():
-                    c1, c2, c3 = st.columns([5, 2, 1])
-                    with c1:
-                        st.markdown(f"**{row['title']}**")
-                        st.caption(f"Organizer: {row['booked_by']}")
-                    with c2:
-                        st.markdown(f"*{dt_str}*")
-                        st.markdown(f"**{time_str}**")
-                    with c3:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        if st.button("Cancel", key=f"del_{row['id']}", help="Remove this booking"):
-                            delete_booking(row['id'])
-                            st.rerun()
-                st.divider()
-    else:
-        st.info("No bookings found in the database.")
+        bookings = get_bookings()
+        if bookings:
+            df = pd.DataFrame(bookings)
+            df['start_time'] = pd.to_datetime(df['start_time'])
+            df['end_time'] = pd.to_datetime(df['end_time'])
+            
+            today = datetime.now().date()
+            future_df = df[df['start_time'].dt.date >= today].copy()
+            future_df = future_df.sort_values(by='start_time')
+            
+            if future_df.empty:
+                st.info("No upcoming bookings found.")
+            else:
+                for index, row in future_df.iterrows():
+                    dt_str = row['start_time'].strftime('%A, %B %d, %Y')
+                    time_str = f"{row['start_time'].strftime('%I:%M %p')} - {row['end_time'].strftime('%I:%M %p')}"
+                    
+                    # Individual Booking Card
+                    with st.container(border=True):
+                        c1, c2, c3 = st.columns([5, 3, 2])
+                        with c1:
+                            st.markdown(f"**{row['title']}**")
+                            st.caption(f"Organizer: {row['booked_by']}")
+                        with c2:
+                            st.markdown(f"*{dt_str}*")
+                            st.markdown(f"**{time_str}**")
+                        with c3:
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            if st.button("Cancel", key=f"del_{row['id']}", type="secondary", use_container_width=True, help="Remove this booking"):
+                                delete_booking(row['id'])
+                                st.rerun()
+        else:
+            st.info("No bookings found in the database.")
 
 # ==========================================================
 # Page: Calibration
 # ==========================================================
 elif page == "Calibration":
     st.title("🎛️ Anomaly Model Calibration")
-    st.markdown("Run environmental audio calibration to establish a baseline for anomaly detection.")
-    st.markdown("The calibration runs **on the edge device** (Raspberry Pi / local machine) and streams progress back here via MQTT.")
-
-    st.warning("⚠️ Please ensure the room is completely empty and quiet during calibration.")
-
-    calib_duration = st.number_input("Calibration Duration (seconds)", min_value=10, max_value=300, value=60, step=10)
+    st.markdown("Run environmental audio calibration to establish a baseline for anomaly detection on the edge device.")
 
     # Initialize session state for calibration tracking
     if "calib_triggered" not in st.session_state:
@@ -486,73 +543,76 @@ elif page == "Calibration":
     if "calib_done_shown" not in st.session_state:
         st.session_state.calib_done_shown = False
 
-    # ── Trigger calibration via MQTT ──
-    if st.button("Start Calibration", type="primary", width='stretch'):
-        reset_calibration_state()
-        st.session_state.calib_done_shown = False
-        success = publish_command({"command": "CALIBRATE", "duration": calib_duration})
-        if success:
-            st.session_state.calib_triggered = True
-            st.rerun()
+    # ── Container 1: Trigger Calibration ──
+    with st.container(border=True):
+        st.subheader("🚀 Run New Calibration")
+        st.warning("⚠️ Please ensure the room is completely empty and quiet during calibration.")
+        
+        c1, c2 = st.columns([2, 1])
+        with c1:
+             calib_duration = st.number_input("Calibration Duration (seconds)", min_value=10, max_value=300, value=60, step=10)
+        with c2:
+             st.markdown("<br>", unsafe_allow_html=True)
+             if st.button("Start Calibration", type="primary", use_container_width=True):
+                 reset_calibration_state()
+                 st.session_state.calib_done_shown = False
+                 success = publish_command({"command": "CALIBRATE", "duration": calib_duration})
+                 if success:
+                     st.session_state.calib_triggered = True
+                     st.rerun()
+                 else:
+                     st.error("❌ Failed to send calibration command. Check MQTT broker connection.")
+
+    # ── Container 2: Live Progress ──
+    with st.container(border=True):
+        st.subheader("📡 Live Progress")
+        calib = get_calibration_state()
+        calib_status = calib["status"]
+        progress = calib["progress"]
+        message = calib["message"]
+
+        # Once the backend responds, clear the "waiting" flag
+        if calib_status in ("running", "done", "error"):
+            st.session_state.calib_triggered = False
+
+        if calib_status == "running":
+            st.session_state.calib_done_shown = False
+            st.progress(min(max(progress, 0), 100))
+            st.markdown(f"**Status:** {message}")
+            st_autorefresh(interval=1000, key="calibration_autorefresh")
+        elif calib_status == "done" and not st.session_state.calib_done_shown:
+            st.success("✅ Calibration complete! Baseline model updated successfully.")
+            st.session_state.calib_done_shown = True
+            st_autorefresh(interval=3000, limit=1, key="calibration_done_dismiss")
+        elif calib_status == "error":
+            st.error(f"❌ Calibration error: {message}")
+        elif st.session_state.calib_triggered:
+            st.info("📡 Command sent. Waiting for the edge device to respond...")
+            st_autorefresh(interval=1000, key="calibration_waiting_autorefresh")
         else:
-            st.error("❌ Failed to send calibration command. Check MQTT broker connection.")
+            st.info("💤 No calibration in progress. Use the controls above to start one.")
 
-    st.markdown("---")
+    # ── Container 3: Calibration History ──
+    with st.container(border=True):
+        st.subheader("📋 Calibration History")
 
-    # ── Live progress display (polls MQTT state) ──
-    calib = get_calibration_state()
-    calib_status = calib["status"]
-    progress = calib["progress"]
-    message = calib["message"]
+        from database import get_calibration_runs
+        runs = get_calibration_runs()
 
-    # Once the backend responds, clear the "waiting" flag
-    if calib_status in ("running", "done", "error"):
-        st.session_state.calib_triggered = False
+        if runs:
+            history_df = pd.DataFrame(runs)
+            history_df['started_at'] = pd.to_datetime(history_df['started_at'])
+            history_df['completed_at'] = pd.to_datetime(history_df['completed_at'])
+            history_df['Date'] = history_df['completed_at'].dt.strftime('%b %d, %Y')
+            history_df['Time'] = history_df['started_at'].dt.strftime('%I:%M %p') + ' \u2192 ' + history_df['completed_at'].dt.strftime('%I:%M %p')
+            history_df['Duration'] = history_df['duration_s'].apply(lambda s: f"{s}s")
+            history_df['Samples'] = history_df['samples_collected'].apply(lambda s: f"{s:,}")
+            history_df['Status'] = history_df['status'].apply(lambda s: "\u2705 Success" if s == "success" else "\u274c Failed")
 
-    if calib_status == "running":
-        st.session_state.calib_done_shown = False
-        st.progress(min(max(progress, 0), 100))
-        st.markdown(f"**Status:** {message}")
-        st_autorefresh(interval=1000, key="calibration_autorefresh")
-
-    elif calib_status == "done" and not st.session_state.calib_done_shown:
-        # Show success briefly, then auto-dismiss on next refresh
-        st.success("✅ Calibration complete! Baseline model updated successfully.")
-        st.session_state.calib_done_shown = True
-        st_autorefresh(interval=3000, limit=1, key="calibration_done_dismiss")
-
-    elif calib_status == "error":
-        st.error(f"❌ Calibration error: {message}")
-
-    elif st.session_state.calib_triggered:
-        st.info("📡 Calibration command sent. Waiting for the edge device to respond...")
-        st_autorefresh(interval=1000, key="calibration_waiting_autorefresh")
-
-    else:
-        st.info("💤 No calibration in progress. Click above to start one.")
-
-    # ── Calibration History ──
-    st.markdown("---")
-    st.subheader("📋 Calibration History")
-
-    from database import get_calibration_runs
-    runs = get_calibration_runs()
-
-    if runs:
-        history_df = pd.DataFrame(runs)
-        history_df['started_at'] = pd.to_datetime(history_df['started_at'])
-        history_df['completed_at'] = pd.to_datetime(history_df['completed_at'])
-        history_df['Date'] = history_df['completed_at'].dt.strftime('%b %d, %Y')
-        history_df['Time'] = history_df['started_at'].dt.strftime('%I:%M %p') + ' \u2192 ' + history_df['completed_at'].dt.strftime('%I:%M %p')
-        history_df['Duration'] = history_df['duration_s'].apply(lambda s: f"{s}s")
-        history_df['Samples'] = history_df['samples_collected'].apply(lambda s: f"{s:,}")
-        history_df['Status'] = history_df['status'].apply(lambda s: "\u2705 Success" if s == "success" else "\u274c Failed")
-
-        st.dataframe(
-            history_df[['Date', 'Time', 'Duration', 'Samples', 'Status']],
-            width='stretch',
-            hide_index=True
-        )
-    else:
-        st.caption("No calibration runs recorded yet. Run your first calibration above!")
-
+            st.dataframe(
+                history_df[['Date', 'Time', 'Duration', 'Samples', 'Status']],
+                width='stretch',
+                hide_index=True
+            )
+        else:
+            st.caption("No calibration runs recorded yet. Run your first calibration above!")

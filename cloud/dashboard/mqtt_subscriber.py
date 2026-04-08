@@ -20,6 +20,7 @@ try:
     MQTT_TOPIC_STATUS = config.MQTT_TOPIC_STATUS
     MQTT_TOPIC_CMD = config.MQTT_TOPIC_CMD
     MQTT_TOPIC_CALIB_PROGRESS = config.MQTT_TOPIC_CALIB_PROGRESS
+    MQTT_TOPIC_MONITOR_STATUS = config.MQTT_TOPIC_MONITOR_STATUS
 except ImportError:
     # Fallbacks if config.py is not available directly
     MQTT_BROKER_HOST = "localhost"
@@ -27,6 +28,7 @@ except ImportError:
     MQTT_TOPIC_STATUS = "room/A/status"
     MQTT_TOPIC_CMD = "room/A/command"
     MQTT_TOPIC_CALIB_PROGRESS = "room/A/calibration/progress"
+    MQTT_TOPIC_MONITOR_STATUS = "room/A/monitoring/status"
 
 _client = None
 _lock = threading.Lock()
@@ -46,6 +48,13 @@ calibration_state = {
     "last_updated": "Never",
 }
 
+# Monitoring run-state (updated by MQTT retained messages from the Pi)
+monitoring_state = {
+    "running": None,        # None = unknown, True/False after first MQTT msg
+    "message": "",
+    "last_updated": "Never",
+}
+
 # Internal tracking for calibration history logging
 _calib_start_time = None
 _calib_samples = 0
@@ -57,6 +66,7 @@ def on_connect(client, userdata, flags, rc):
         logging.info(f"Connected to MQTT broker at {MQTT_BROKER_HOST}")
         client.subscribe(MQTT_TOPIC_STATUS)
         client.subscribe(MQTT_TOPIC_CALIB_PROGRESS)
+        client.subscribe(MQTT_TOPIC_MONITOR_STATUS)
     else:
         logging.error(f"Failed to connect to MQTT broker, return code {rc}")
 
@@ -118,6 +128,15 @@ def on_message(client, userdata, msg):
     try:
         payload = msg.payload.decode()
         data = json.loads(payload)
+
+        # ── Monitoring status messages ──
+        if msg.topic == MQTT_TOPIC_MONITOR_STATUS:
+            with _lock:
+                monitoring_state["running"] = data.get("running")
+                monitoring_state["message"] = data.get("message", "")
+                monitoring_state["last_updated"] = data.get("timestamp", "Never")
+            logging.info(f"Monitoring state updated -> running={monitoring_state['running']}")
+            return
 
         # ── Calibration progress messages ──
         if msg.topic == MQTT_TOPIC_CALIB_PROGRESS:
@@ -215,6 +234,11 @@ def get_calibration_state():
     """Returns a thread-safe copy of the current calibration progress."""
     with _lock:
         return dict(calibration_state)
+
+def get_monitoring_state():
+    """Returns a thread-safe copy of the current monitoring run-state."""
+    with _lock:
+        return dict(monitoring_state)
 
 def reset_calibration_state():
     """Reset calibration state back to idle (call before starting a new run)."""
