@@ -63,9 +63,9 @@ if page == "Dashboard":
     st.markdown("Real-time monitoring and analytics for **Room A**.")
 
     # ── Calibration warning banner ──
-    calib_runs = get_calibration_runs()
-    has_successful_calibration = any(r["status"] == "success" for r in calib_runs) if calib_runs else False
-    if not has_successful_calibration:
+    mon = get_monitoring_state()
+    is_calibrated = mon.get("is_calibrated", False)
+    if not is_calibrated:
         st.warning(
             "⚠️ **No calibrated anomaly model detected!** "
             "The system is running with **vision + voice activity detection only** (anomaly detection is disabled). "
@@ -555,16 +555,21 @@ elif page == "Calibration":
     st.markdown("Run environmental audio calibration to establish a baseline for anomaly detection on the edge device.")
 
     # ── Calibration status indicator ──
-    calib_runs = get_calibration_runs()
-    has_successful_calibration = any(r["status"] == "success" for r in calib_runs) if calib_runs else False
-    if has_successful_calibration:
-        last_success = [r for r in calib_runs if r["status"] == "success"][-1]
-        st.success(f"✅ Anomaly model is calibrated. Last successful run: {last_success['completed_at']}", icon="✅")
+    mon = get_monitoring_state()
+    is_calibrated = mon.get("is_calibrated", False)
+    
+    if is_calibrated:
+        calib_runs = get_calibration_runs()
+        last_success = [r for r in calib_runs if r["status"] == "success"]
+        if last_success:
+            st.success(f"✅ Baseline model verified on Edge Agent. Last run logged: {last_success[-1]['completed_at']}", icon="✅")
+        else:
+            st.success(f"✅ Baseline model verified on Edge Agent and is actively running.", icon="✅")
     else:
         st.error(
-            "🔴 **No calibration has been completed yet.** "
+            "🔴 **No baseline model detected on the Edge Agent.**\n\n"
             "Anomaly detection is currently disabled — the system is running with vision + VAD only. "
-            "Run a calibration below to enable full occupancy detection.",
+            "Run a calibration below to establish a baseline.",
             icon="🔴"
         )
 

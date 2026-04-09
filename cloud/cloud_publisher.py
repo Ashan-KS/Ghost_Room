@@ -181,6 +181,7 @@ def cloud_publisher():
             try:
                 hb_payload = json.dumps({
                     "room": config.ROOM_ID,
+                    "is_calibrated": os.path.exists(config.ANOMALY_MODEL_PATH),
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
                 # Not retained, because it's a liveliness check

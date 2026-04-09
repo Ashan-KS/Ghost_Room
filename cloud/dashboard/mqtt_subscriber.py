@@ -56,6 +56,7 @@ monitoring_state = {
     "running": None,        # None = unknown, True/False after first MQTT msg
     "message": "",
     "last_updated": "Never",
+    "is_calibrated": False, # Updated live via heartbeat 
 }
 
 # Internal tracking for calibration history logging
@@ -148,6 +149,7 @@ def on_message(client, userdata, msg):
             global _last_heartbeat_time
             with _lock:
                 _last_heartbeat_time = time.time()
+                monitoring_state["is_calibrated"] = data.get("is_calibrated", False)
             return
             
         # ── Calibration progress messages ──
