@@ -56,7 +56,7 @@ def publish_state(state: str):
     Publish a room state change to AWS.
 
     Args:
-        state: "IN_USE" or "EMPTY"
+        state: "IN_USE", "EMPTY", or "UNKNOWN"
     """
     payload = json.dumps({
         "room":      config.ROOM_ID,
@@ -73,9 +73,10 @@ def publish_state(state: str):
     else:
         log.warning(f"No MQTT client — state not published: {state}")
 
-    # Also flip GPIO
-    from gpio.actuator import set_room_state
-    set_room_state(state)
+    # Also flip GPIO (only for real states, not UNKNOWN)
+    if state in ("IN_USE", "EMPTY"):
+        from gpio.actuator import set_room_state
+        set_room_state(state)
 
 
 def _publish_monitoring_status(running: bool, message: str = ""):
@@ -120,6 +121,8 @@ def _handle_command(payload: str):
             import main as agent
             agent.stop_monitoring()
             _publish_monitoring_status(False, "Monitoring stopped via dashboard.")
+            # Publish UNKNOWN room status so dashboard doesn't show stale occupancy
+            publish_state("UNKNOWN")
         else:
             log.warning(f"Unknown command: {cmd}")
 

@@ -94,6 +94,11 @@ if page == "Dashboard":
     except Exception:
         pass
 
+    # If monitoring is stopped, sensors are not reading — occupancy is unknown
+    if mon_running is False:
+        status = "UNKNOWN"
+        last_updated = mon_updated or last_updated
+
     # ── Row 1: Edge Agent ──
     with st.container(border=True):
         st.subheader("🛡️ Edge Agent Monitoring", help="Controls the occupancy detection sensors (camera, audio, anomaly).")
