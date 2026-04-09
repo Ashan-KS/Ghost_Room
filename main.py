@@ -41,17 +41,27 @@ _monitor_lock = threading.Lock()
 
 
 def _ensure_calibrated():
-    """Check for an existing baseline model; run calibration if missing."""
-    from anomaly.calibration import run_calibration
+    """
+    Try to load an existing baseline model.
+    If none exists, log a warning and continue — the system will run
+    with vision + VAD only (anomaly score returns 0). The user can
+    calibrate later from the Streamlit dashboard.
+    """
     from anomaly.anomly_model import load_model
 
     if os.path.exists(ANOMALY_MODEL_PATH):
-        log.info(f"Baseline model found at {ANOMALY_MODEL_PATH} — skipping calibration.")
-        load_model()
+        log.info(f"Baseline model found at {ANOMALY_MODEL_PATH} — loading.")
+        try:
+            load_model()
+        except Exception as e:
+            log.error(f"Failed to load baseline model: {e}")
+            log.warning("Continuing without anomaly detection.")
     else:
-        log.info("No baseline found. Starting calibration (do not enter the room)...")
-        run_calibration()
-        log.info("Calibration complete. Baseline saved.")
+        log.warning(
+            "⚠️  No calibrated anomaly model found! "
+            "System will run with vision + VAD only (anomaly disabled). "
+            "Run calibration from the Streamlit dashboard to enable full detection."
+        )
 
 
 def start_monitoring():
@@ -94,14 +104,16 @@ def stop_monitoring():
         log.info("Stopping monitoring — signalling threads to exit...")
         monitoring_active.clear()
 
-        # Give threads a moment to notice the event and exit
+        # Threads check monitoring_active each iteration, so they exit quickly
         for t in monitoring_threads:
-            t.join(timeout=5)
+            t.join(timeout=3)
             if t.is_alive():
                 log.warning(f"Thread {t.name} did not exit within timeout (daemon — will be cleaned up).")
+            else:
+                log.info(f"Thread {t.name} exited cleanly.")
 
         monitoring_threads = []
-        log.info("Monitoring stopped.")
+        log.info("Monitoring stopped — all sensor threads shut down.")
 
 
 def is_monitoring_active() -> bool:

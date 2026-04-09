@@ -101,6 +101,11 @@ def load_model():
     if os.path.exists(config.ANOMALY_MODEL_PATH):
         _model_mtime = os.path.getmtime(config.ANOMALY_MODEL_PATH)
 
+def is_model_loaded() -> bool:
+    """Check if a calibrated anomaly model is available."""
+    return _model is not None and _scaler is not None
+
+
 def get_anomaly_score(vec: np.ndarray) -> float:
     global _model, _scaler, _stat_mean, _stat_std, _stat_threshold, _iso_threshold, _model_mtime
     
@@ -115,9 +120,17 @@ def get_anomaly_score(vec: np.ndarray) -> float:
                 # File may still be mid-write; skip this cycle and retry next time
                 log.warning(f"Hot-reload skipped (file may be mid-write): {e}")
             
-    # Ensure model loaded
+    # If no model is available (uncalibrated), return 0 (not anomalous).
+    # Fusion degrades to vision + VAD only — still functional.
     if _model is None or _scaler is None:
-        load_model()
+        if not os.path.exists(config.ANOMALY_MODEL_PATH):
+            return 0
+        try:
+            load_model()
+        except Exception as e:
+            log.warning(f"Cannot load anomaly model: {e} — returning score 0.")
+            return 0
+
     # Statistical score
     stat_score = np.mean(np.abs((vec - _stat_mean) / (_stat_std + 1e-6)))
     # IF score (High anomaly is LOWER value!)

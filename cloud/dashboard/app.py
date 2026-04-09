@@ -12,7 +12,7 @@ from streamlit_autorefresh import st_autorefresh
 # Ensure imports work regardless of where the script is run from
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from database import init_db, add_booking, get_bookings, delete_booking
+from database import init_db, add_booking, get_bookings, delete_booking, get_calibration_runs
 from mqtt_subscriber import start_mqtt, get_current_state, get_calibration_state, reset_calibration_state, publish_command, get_monitoring_state
 import config
 
@@ -61,6 +61,18 @@ if local_test_mode:
 if page == "Dashboard":
     st.title("🖥️ Meeting Room Status Dashboard")
     st.markdown("Real-time monitoring and analytics for **Room A**.")
+
+    # ── Calibration warning banner ──
+    calib_runs = get_calibration_runs()
+    has_successful_calibration = any(r["status"] == "success" for r in calib_runs) if calib_runs else False
+    if not has_successful_calibration:
+        st.warning(
+            "⚠️ **No calibrated anomaly model detected!** "
+            "The system is running with **vision + voice activity detection only** (anomaly detection is disabled). "
+            "Go to the **Calibration** page to run a baseline calibration for full accuracy.",
+            icon="⚠️"
+        )
+
     st.markdown("<br>", unsafe_allow_html=True)
     
     # ── Room Realtime Status ──
@@ -542,6 +554,20 @@ elif page == "Calibration":
     st.title("🎛️ Anomaly Model Calibration")
     st.markdown("Run environmental audio calibration to establish a baseline for anomaly detection on the edge device.")
 
+    # ── Calibration status indicator ──
+    calib_runs = get_calibration_runs()
+    has_successful_calibration = any(r["status"] == "success" for r in calib_runs) if calib_runs else False
+    if has_successful_calibration:
+        last_success = [r for r in calib_runs if r["status"] == "success"][-1]
+        st.success(f"✅ Anomaly model is calibrated. Last successful run: {last_success['completed_at']}", icon="✅")
+    else:
+        st.error(
+            "🔴 **No calibration has been completed yet.** "
+            "Anomaly detection is currently disabled — the system is running with vision + VAD only. "
+            "Run a calibration below to enable full occupancy detection.",
+            icon="🔴"
+        )
+
     # Initialize session state for calibration tracking
     if "calib_triggered" not in st.session_state:
         st.session_state.calib_triggered = False
@@ -601,7 +627,6 @@ elif page == "Calibration":
     with st.container(border=True):
         st.subheader("📋 Calibration History")
 
-        from database import get_calibration_runs
         runs = get_calibration_runs()
 
         if runs:

@@ -101,7 +101,8 @@ def camera_loop() -> None:
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
  
     try:
-        while True:
+        from main import monitoring_active
+        while monitoring_active.is_set():
             t0 = time.monotonic()
  
             # ── 1. Capture ────────────────────────────────────────────────

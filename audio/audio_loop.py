@@ -36,7 +36,8 @@ def audio_loop():
     speech_count = 0
     anomaly_count = 0
 
-    while True:
+    from main import monitoring_active
+    while monitoring_active.is_set():
         try:
             # ── 1. Capture ────────────────────────────────────────────────
             chunk = get_audio_chunk()
@@ -83,3 +84,5 @@ def audio_loop():
         except Exception as e:
             log.error(f"Audio loop error: {e}", exc_info=True)
             time.sleep(0.1)
+
+    log.info("Audio loop exited — monitoring stopped.")

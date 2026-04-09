@@ -42,7 +42,8 @@ def fusion_loop():
     latest_anomaly = False
     curr_anomaly_score = 0.0
 
-    while True:
+    from main import monitoring_active
+    while monitoring_active.is_set():
         now = time.time()
 
         # Drain all queues — take the latest reading from each
@@ -95,6 +96,8 @@ def fusion_loop():
             publish_state(current_state)
 
         time.sleep(0.5)   # poll every 500ms
+
+    log.info("Fusion loop exited — monitoring stopped.")
 
 
 def _drain_queue(q):
