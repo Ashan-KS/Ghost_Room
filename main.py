@@ -21,7 +21,7 @@ import logging
 import os
 import sys
 
-from config import ANOMALY_MODEL_PATH
+from config import ANOMALY_MODEL_PATH, monitoring_active
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,10 +31,6 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ── Monitoring lifecycle controls ─────────────────────────────────────────────
-# When this event is *set*  → monitoring threads are alive.
-# When this event is *clear*→ monitoring threads should gracefully exit.
-monitoring_active = threading.Event()
-
 # Keep references so we can join() old threads before spawning new ones.
 monitoring_threads: list[threading.Thread] = []
 _monitor_lock = threading.Lock()

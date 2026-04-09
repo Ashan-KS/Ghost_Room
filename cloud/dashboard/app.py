@@ -582,24 +582,30 @@ elif page == "Calibration":
         st.session_state.calib_done_shown = False
 
     # ── Container 1: Trigger Calibration ──
+    calib = get_calibration_state()
+    calib_running = calib["status"] == "running"
+
     with st.container(border=True):
         st.subheader("🚀 Run New Calibration")
         st.warning("⚠️ Please ensure the room is completely empty and quiet during calibration.")
         
         c1, c2 = st.columns([2, 1])
         with c1:
-             calib_duration = st.number_input("Calibration Duration (seconds)", min_value=10, max_value=300, value=60, step=10)
+             calib_duration = st.number_input("Calibration Duration (seconds)", min_value=10, max_value=300, value=60, step=10, disabled=calib_running)
         with c2:
              st.markdown("<br>", unsafe_allow_html=True)
-             if st.button("Start Calibration", type="primary", use_container_width=True):
-                 reset_calibration_state()
-                 st.session_state.calib_done_shown = False
-                 success = publish_command({"command": "CALIBRATE", "duration": calib_duration})
-                 if success:
-                     st.session_state.calib_triggered = True
-                     st.rerun()
-                 else:
-                     st.error("❌ Failed to send calibration command. Check MQTT broker connection.")
+             if calib_running:
+                 st.button("⏳ Calibration Running...", type="secondary", use_container_width=True, disabled=True)
+             else:
+                 if st.button("Start Calibration", type="primary", use_container_width=True):
+                     reset_calibration_state()
+                     st.session_state.calib_done_shown = False
+                     success = publish_command({"command": "CALIBRATE", "duration": calib_duration})
+                     if success:
+                         st.session_state.calib_triggered = True
+                         st.rerun()
+                     else:
+                         st.error("❌ Failed to send calibration command. Check MQTT broker connection.")
 
     # ── Container 2: Live Progress ──
     with st.container(border=True):

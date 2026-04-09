@@ -42,7 +42,7 @@ def fusion_loop():
     latest_anomaly = False
     curr_anomaly_score = 0.0
 
-    from main import monitoring_active
+    from config import monitoring_active
     while monitoring_active.is_set():
         now = time.time()
 

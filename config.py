@@ -24,11 +24,17 @@ anomaly_queue message:
 
 import queue
 import os
+import threading
 
 # ── Shared queues ─────────────────────────────────────────────────────────────
 vision_queue  = queue.Queue()   # Sachith  → Ashan
 audio_queue   = queue.Queue()   # Rahul    → Ashan
 anomaly_queue = queue.Queue()   # Ginura   → Ashan
+
+# ── Monitoring lifecycle ──────────────────────────────────────────────────────
+# When this event is *set*  → monitoring threads are alive.
+# When this event is *clear*→ monitoring threads should gracefully exit.
+monitoring_active = threading.Event()
 
 # ── Decision thresholds ───────────────────────────────────────────────────────
 VISION_THRESHOLD  = 0.50   # MobileNet confidence above this → person detected

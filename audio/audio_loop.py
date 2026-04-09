@@ -36,7 +36,7 @@ def audio_loop():
     speech_count = 0
     anomaly_count = 0
 
-    from main import monitoring_active
+    from config import monitoring_active
     while monitoring_active.is_set():
         try:
             # ── 1. Capture ────────────────────────────────────────────────
