@@ -480,7 +480,7 @@ elif page == "Manage Bookings":
                 booked_by = st.text_input("Organizer Name", placeholder="e.g. Alice")
             with col2:
                 date = st.date_input("Date")
-                start_time = st.time_input("Start Time", value=datetime.now().time())
+                start_time = st.time_input("Start Time", value=None)
                 duration = st.number_input("Duration (minutes)", min_value=15, max_value=480, value=60, step=15)
                 
             submit = st.form_submit_button("Book Room", type="primary", use_container_width=True)
@@ -488,6 +488,8 @@ elif page == "Manage Bookings":
             if submit:
                 if not title.strip() or not booked_by.strip():
                     st.error("Please fill in both the Meeting Title and Organizer fields.")
+                elif start_time is None:
+                    st.error("Please select a precise Start Time from the dropdown.")
                 else:
                     start_dt = datetime.combine(date, start_time)
                     end_dt = start_dt + timedelta(minutes=duration)
