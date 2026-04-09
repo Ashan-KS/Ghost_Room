@@ -29,9 +29,12 @@ except ImportError:
     MQTT_TOPIC_CMD = "room/A/command"
     MQTT_TOPIC_CALIB_PROGRESS = "room/A/calibration/progress"
     MQTT_TOPIC_MONITOR_STATUS = "room/A/monitoring/status"
+    MQTT_TOPIC_HEARTBEAT      = "room/A/heartbeat"
 
+import time
 _client = None
 _lock = threading.Lock()
+_last_heartbeat_time = time.time()
 
 # Global state to share across Streamlit sessions
 room_state = {
@@ -67,6 +70,7 @@ def on_connect(client, userdata, flags, rc):
         client.subscribe(MQTT_TOPIC_STATUS)
         client.subscribe(MQTT_TOPIC_CALIB_PROGRESS)
         client.subscribe(MQTT_TOPIC_MONITOR_STATUS)
+        client.subscribe(MQTT_TOPIC_HEARTBEAT)
     else:
         logging.error(f"Failed to connect to MQTT broker, return code {rc}")
 
@@ -138,6 +142,14 @@ def on_message(client, userdata, msg):
             logging.info(f"Monitoring state updated -> running={monitoring_state['running']}")
             return
 
+        # ── Heartbeat ──
+        if msg.topic == MQTT_TOPIC_HEARTBEAT:
+            import time
+            global _last_heartbeat_time
+            with _lock:
+                _last_heartbeat_time = time.time()
+            return
+            
         # ── Calibration progress messages ──
         if msg.topic == MQTT_TOPIC_CALIB_PROGRESS:
             with _lock:
@@ -227,8 +239,13 @@ def on_message(client, userdata, msg):
 
 def get_current_state():
     """Returns a thread-safe copy of the current room state."""
+    import time
     with _lock:
-        return dict(room_state)
+        state = dict(room_state)
+        # If backend is dead, override retained state
+        if time.time() - _last_heartbeat_time > 15:
+            state["status"] = "UNKNOWN"
+        return state
 
 def get_calibration_state():
     """Returns a thread-safe copy of the current calibration progress."""
@@ -237,8 +254,14 @@ def get_calibration_state():
 
 def get_monitoring_state():
     """Returns a thread-safe copy of the current monitoring run-state."""
+    import time
     with _lock:
-        return dict(monitoring_state)
+        state = dict(monitoring_state)
+        # If backend hasn't pinged in 15 seconds, assume it crashed/offline
+        if time.time() - _last_heartbeat_time > 15:
+            state["running"] = False
+            state["message"] = "Backend Offline (No connection to Edge Agent)"
+        return state
 
 def reset_calibration_state():
     """Reset calibration state back to idle (call before starting a new run)."""

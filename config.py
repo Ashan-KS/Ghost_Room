@@ -67,6 +67,7 @@ MQTT_TOPIC_STATUS = "room/A/status"     # Pi publishes here
 MQTT_TOPIC_CMD    = "room/A/command"    # Pi subscribes here (for maintenance lock)
 MQTT_TOPIC_CALIB_PROGRESS = "room/A/calibration/progress"  # Pi publishes calibration progress here
 MQTT_TOPIC_MONITOR_STATUS = "room/A/monitoring/status"     # Pi publishes monitoring run-state here
+MQTT_TOPIC_HEARTBEAT      = "room/A/heartbeat"             # Pi publishes liveliness ping here
 ROOM_ID           = "A"
 
 # ── AWS S3 ────────────────────────────────────────────────────────────────────

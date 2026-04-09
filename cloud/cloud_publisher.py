@@ -168,7 +168,7 @@ def _start_calibration(duration: int):
 def cloud_publisher():
     """Thread target — keeps MQTT loop alive."""
     log.info("Cloud publisher started.")
-    _get_client()
+    client = _get_client()
 
     # Publish initial monitoring state so the dashboard knows we're active
     import time as _time
@@ -177,4 +177,14 @@ def cloud_publisher():
 
     import time
     while True:
+        if client:
+            try:
+                hb_payload = json.dumps({
+                    "room": config.ROOM_ID,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+                # Not retained, because it's a liveliness check
+                client.publish(config.MQTT_TOPIC_HEARTBEAT, hb_payload)
+            except Exception as e:
+                log.warning(f"Heartbeat publish error: {e}")
         time.sleep(5)
