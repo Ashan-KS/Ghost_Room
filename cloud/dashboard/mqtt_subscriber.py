@@ -21,6 +21,7 @@ try:
     MQTT_TOPIC_CMD = config.MQTT_TOPIC_CMD
     MQTT_TOPIC_CALIB_PROGRESS = config.MQTT_TOPIC_CALIB_PROGRESS
     MQTT_TOPIC_MONITOR_STATUS = config.MQTT_TOPIC_MONITOR_STATUS
+    MQTT_TOPIC_HEARTBEAT      = config.MQTT_TOPIC_HEARTBEAT
 except ImportError:
     # Fallbacks if config.py is not available directly
     MQTT_BROKER_HOST = "localhost"
