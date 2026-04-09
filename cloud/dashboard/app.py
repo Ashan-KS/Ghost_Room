@@ -113,24 +113,24 @@ if page == "Dashboard":
 
     # ── Row 1: Edge Agent ──
     with st.container(border=True):
-        st.subheader("🛡️ Edge Agent Monitoring", help="Controls the occupancy detection sensors (camera, audio, anomaly).")
-        e1, e2 = st.columns([3, 1])
+        st.subheader("🛡️ Edge Agent Status", help="Controls the occupancy detection sensors (camera, audio, anomaly).")
+        e1, e2, e3 = st.columns([2, 2, 2])
         
         with e1:
             if mon_running is True:
-                st.success("🟢 Status: **RUNNING**", icon="🟢")
+                st.markdown("### 🟢 RUNNING")
             elif mon_running is False:
-                st.error("🔴 Status: **STOPPED**", icon="🔴")
+                st.markdown("### 🔴 STOPPED")
             else:
-                st.warning("🟡 Status: **UNKNOWN**", icon="🟡")
-                
-            if mon_message:
-                st.caption(f"Info: {mon_message}")
-            else:
-                st.caption(f"Last Updated: {mon_updated}")
-                
+                st.markdown("### 🟡 UNKNOWN")
+            st.caption(f"{mon_message if mon_message else 'Normal Operations'}")
+            
         with e2:
-            st.write("") # spacing push down to align
+            st.markdown("**Last Status Sync**")
+            st.caption(f"🕒 {mon_updated}")
+                
+        with e3:
+            # Control button sizing and alignment
             if mon_running is True:
                 if st.button("⏹️ Stop Sensors", type="secondary", use_container_width=True):
                     if publish_command({"command": "STOP_MONITORING"}):
@@ -154,27 +154,23 @@ if page == "Dashboard":
                             time.sleep(1)
                             st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
     # ── Row 2: Occupancy & Booking Overview ──
     col1, col2 = st.columns([1, 1])
     
     with col1:
         with st.container(border=True):
-            st.subheader("Current Occupancy")
+            st.subheader("📊 Current Occupancy")
             if status == "IN_USE":
-                st.error("🔴 IN USE", icon="🔴")
-                st.caption(f"Last Updated: {last_updated}")
+                st.markdown("## 🔴 IN USE")
             elif status == "EMPTY":
-                st.success("🟢 AVAILABLE", icon="🟢")
-                st.caption(f"Last Updated: {last_updated}")
+                st.markdown("## 🟢 AVAILABLE")
             else:
-                st.warning(f"🟡 {status}", icon="🟡")
-                st.caption(f"Last Updated: {last_updated}")
+                st.markdown(f"## 🟡 {status}")
+            st.caption(f"Sensor last updated: **{last_updated}**")
             
     with col2:
         with st.container(border=True):
-            st.subheader("Booking Overview")
+            st.subheader("📅 Today's Bookings")
             bookings = get_bookings()
             today = datetime.now().date()
             today_df = pd.DataFrame()
@@ -185,7 +181,11 @@ if page == "Dashboard":
                 today_df = df[df['start_time'].dt.date == today]
                 
             today_count = len(today_df)
-            st.metric("Meetings Scheduled Today", f"📅 {today_count}")
+            st.markdown(f"## {today_count} Meetings")
+            if today_count == 0:
+                st.caption("The room is completely free today.")
+            else:
+                st.caption("Check the chronological agenda below.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     
