@@ -17,7 +17,7 @@ dependencies = [
     "soundfile>=0.12",
     "pyaudio>=0.2.13",
     "onnxruntime==1.23.2",
-    "opencv-python==4.13.0.92",
+    "opencv-python-headless>=4.8",
     "tensorflow==2.21.0",
     "ultralytics==8.4.24",
     "boto3"
