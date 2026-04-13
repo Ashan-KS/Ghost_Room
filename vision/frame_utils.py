@@ -84,6 +84,9 @@ def _get_webcam_frame() -> Optional[np.ndarray]:
 
     if _cap is None or not _cap.isOpened():
         _cap = cv2.VideoCapture(config.CAMERA_INDEX)
+        # Limit buffer to 1 frame to prevent lag/stucking on slower platforms (like Pi)
+        _cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        
         if not _cap.isOpened():
             log.error(
                 f"Could not open webcam at index {config.CAMERA_INDEX}. "
