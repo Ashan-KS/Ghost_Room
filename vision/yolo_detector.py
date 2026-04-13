@@ -2,7 +2,7 @@
 vision/yolo_detector.py
 ========================
 Concrete detector backend: YOLOv8 (or any Ultralytics YOLO) via the
-`ultralytics` Python package, with an optional ONNX Runtime fallback
+ultralytics Python package, with an optional ONNX Runtime fallback
 for environments where the full package is too heavy (e.g. bare Pi).
 
 Model file expected at:  config.MODEL_PATH
@@ -40,7 +40,7 @@ class YoloDetector(BaseDetector):
     no caller code changes when you switch.
     """
 
-    def __init__(self, cfg):
+    def _init_(self, cfg):
         super().__init__(cfg)
         self._model   = None        # ultralytics YOLO object  OR  ort.InferenceSession
         self._backend = None        # "ultralytics" | "onnx"
@@ -53,10 +53,12 @@ class YoloDetector(BaseDetector):
     # ------------------------------------------------------------------ #
 
     def load(self) -> None:
-        """Load YOLO weights.  Tries ultralytics → onnxruntime in order."""
+        """Load YOLO weights. Checks if .onnx to use onnxruntime directly, else ultralytics."""
         model_path = self.cfg.MODEL_PATH
-
-        if self._try_load_ultralytics(model_path):
+        # If .onnx is specified, prefer onnxruntime first to avoid PyTorch SIGILL on Pi
+        if model_path.endswith(".onnx") and self._try_load_onnx(model_path):
+            self._backend = "onnx"
+        elif self._try_load_ultralytics(model_path):
             self._backend = "ultralytics"
         elif self._try_load_onnx(model_path):
             self._backend = "onnx"
@@ -67,25 +69,21 @@ class YoloDetector(BaseDetector):
                 "  pip install onnxruntime      (lightweight Pi option)\n"
                 f"Model path: {model_path}"
             )
-
         # Labels: YOLO embeds its own, but honour an external file if provided
         try:
             self._labels = self._load_labels(self.cfg.LABEL_PATH)
         except (FileNotFoundError, AttributeError):
             # Fine — we'll use the class-id integer directly
             self._labels = []
-
         self._loaded = True
         log.info(f"YOLO detector ready — backend={self._backend}, model={model_path}")
-
+        
     def run_inference(self, frame: np.ndarray) -> float:
         """
         Run YOLO person detection on one frame.
-
         Returns highest person confidence ≥ VISION_THRESHOLD, else 0.0.
         """
         self._ensure_loaded()
-
         if self._backend == "ultralytics":
             return self._infer_ultralytics(frame)
         else:
@@ -223,27 +221,40 @@ class YoloDetector(BaseDetector):
     def _detections_onnx(self, frame: np.ndarray) -> list[dict]:
         h, w     = frame.shape[:2]
         threshold = self.cfg.VISION_THRESHOLD
-
         input_tensor = self._preprocess_onnx(frame)
         input_name   = self._model.get_inputs()[0].name
         outputs      = self._model.run(None, {input_name: input_tensor})
-
         preds        = outputs[0][0]           # (84, num_anchors)
         cx, cy, bw, bh = preds[0], preds[1], preds[2], preds[3]
         person_scores  = preds[4 + _PERSON_CLASS_ID]
-
-        detections = []
+        boxes_nms = []
+        scores_nms = []
         for i, score in enumerate(person_scores):
             if score < threshold:
                 continue
-            # Convert normalised cx/cy/w/h → pixel xyxy
-            x1 = int((cx[i] - bw[i] / 2) * w)
-            y1 = int((cy[i] - bh[i] / 2) * h)
-            x2 = int((cx[i] + bw[i] / 2) * w)
-            y2 = int((cy[i] + bh[i] / 2) * h)
-            detections.append({
-                "confidence": float(score),
-                "label":      "person",
-                "box":        (x1, y1, x2, y2),
-            })
+            x_left = int((cx[i] - bw[i] / 2) * w)
+            y_top  = int((cy[i] - bh[i] / 2) * h)
+            w_px   = int(bw[i] * w)
+            h_px   = int(bh[i] * h)
+            
+            boxes_nms.append([x_left, y_top, w_px, h_px])
+            scores_nms.append(float(score))
+        detections = []
+        if len(boxes_nms) > 0:
+            # OpenCV NMS to eliminate multiple overlapping boxes for the same person
+            indices = cv2.dnn.NMSBoxes(
+                boxes_nms, 
+                scores_nms, 
+                score_threshold=threshold, 
+                nms_threshold=0.45
+            )
+            
+            if len(indices) > 0:
+                for i in indices.flatten():
+                    x, y, w_box, h_box = boxes_nms[i]
+                    detections.append({
+                        "confidence": scores_nms[i],
+                        "label":      "person",
+                        "box":        (x, y, x + w_box, y + h_box),
+                    })
         return detections
