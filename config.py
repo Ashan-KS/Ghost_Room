@@ -46,11 +46,11 @@ EMPTY_TIMEOUT_SECONDS = 5     # 5 seconds of no signal → flip to EMPTY (for te
 
 # ── Hardware flag ─────────────────────────────────────────────────────────────
 # Set False on laptops, True when running on Raspberry Pi
-USE_PI_HARDWARE = False
+USE_PI_HARDWARE = True
 
 # ── Camera settings ───────────────────────────────────────────────────────────
 CAMERA_INDEX      = 0       # laptop webcam; ignored when USE_PI_HARDWARE=True
-CAMERA_FPS        = 30    # frames per second for inference loop
+CAMERA_FPS        = 5    # frames per second for inference loop
 FRAME_SIZE        = (300, 300)
 
 # ── Audio settings ────────────────────────────────────────────────────────────
@@ -103,7 +103,10 @@ if MODEL_BACKEND == "mobilenet":
     MODEL_PATH = os.path.join(_MODELS_DIR, "ssd_mobilenet_v1_coco_quant.tflite")
     LABEL_PATH = os.path.join(_MODELS_DIR, "coco_labels.txt")
 elif MODEL_BACKEND == "yolo":
-    MODEL_PATH = os.path.join(_MODELS_DIR, "yolov8n.pt")    # swap to .onnx on Pi
+    if USE_PI_HARDWARE:
+        MODEL_PATH = os.path.join(_MODELS_DIR, "yolov8n.onnx")  # avoid ultraheavy torch on Pi
+    else:
+        MODEL_PATH = os.path.join(_MODELS_DIR, "yolov8n.pt")    # native dev
     LABEL_PATH = os.path.join(_MODELS_DIR, "coco_labels.txt")
 else:
     raise ValueError(f"Unknown MODEL_BACKEND: {MODEL_BACKEND!r}. Choose 'mobilenet' or 'yolo'.")
