@@ -10,6 +10,7 @@ Wiring:
 """
 
 import logging
+import atexit
 import config
 
 log = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ def _init_gpio():
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(config.GPIO_RED_LED,   GPIO.OUT, initial=GPIO.LOW)
         GPIO.setup(config.GPIO_GREEN_LED, GPIO.OUT, initial=GPIO.LOW)
+        atexit.register(GPIO.cleanup)
         _gpio_ready = True
         log.info("GPIO initialised.")
     except Exception as e:
