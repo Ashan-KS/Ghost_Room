@@ -12,27 +12,125 @@ Install: pip install webrtcvad pyaudio
 """
 
 import logging
-import numpy as np
+# import numpy as np
 import config
+import struct
+import os
+import subprocess
+import sys
+
+# We need PyTorch for Edge AI inferencing
+try:
+    import torch
+except ImportError:
+    torch = None
 
 log = logging.getLogger(__name__)
 
-_vad      = None
+_model    = None
 _stream   = None
 _pyaudio  = None
 
 
+def _get_model_candidates(base_dir: str) -> list[str]:
+    audio_dir = os.path.dirname(os.path.abspath(__file__))
+    return [
+        os.path.join(base_dir, "models", "silero_vad_int8.pt"),
+        os.path.join(audio_dir, "models", "silero_vad_int8.pt"),
+        os.path.join("models", "silero_vad_int8.pt"),
+    ]
+
+
+def _build_vad_model(base_dir: str) -> bool:
+    """Run the VAD training/quantization script to generate a loadable model."""
+    train_script = os.path.join(base_dir, "audio", "vad_model.py")
+    if not os.path.exists(train_script):
+        log.error("VAD training script not found at %s", train_script)
+        return False
+
+    cmd = [sys.executable, train_script]
+    log.info("Building VAD model with command: %s", " ".join(cmd))
+
+    try:
+        subprocess.run(cmd, cwd=base_dir, check=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        log.error("VAD model build failed (exit=%s)", e.returncode)
+        return False
+    except Exception as e:
+        log.error("Unexpected error while building VAD model: %s", e)
+        return False
+
+
+def _get_vad_frame_samples(sample_rate: int) -> int:
+    if sample_rate == 16000:
+        return 512
+    if sample_rate == 8000:
+        return 256
+    raise ValueError(f"Unsupported sample rate for Silero VAD: {sample_rate}")
+
+
+def _prepare_for_silero(chunk: bytes):
+    """Convert raw int16 chunk to normalized tensor with valid Silero frame length."""
+    num_samples = len(chunk) // 2
+    audio_int16 = struct.unpack(f"{num_samples}h", chunk)
+    audio_float32 = [x / 32768.0 for x in audio_int16]
+
+    expected = _get_vad_frame_samples(config.AUDIO_SAMPLE_RATE)
+    if len(audio_float32) < expected:
+        audio_float32.extend([0.0] * (expected - len(audio_float32)))
+    elif len(audio_float32) > expected:
+        audio_float32 = audio_float32[:expected]
+
+    return torch.tensor([audio_float32], dtype=torch.float32)
+
+
 
 def _init_vad():
-    """Initialise WebRTC VAD. Called once."""
-    global _vad
-    try:
-        import webrtcvad
-        _vad = webrtcvad.Vad(config.VAD_MODE)
-        log.info(f"WebRTC VAD initialised (mode={config.VAD_MODE})")
-    except ImportError:
-        log.warning("webrtcvad not installed — is_speech() will always return False.")
+    """Initialise PyTorch Silero VAD (INT8 optimized). Called once."""
+    global _model
+    
+    if torch is None:
+        raise RuntimeError("PyTorch is not installed. Cannot start VAD workflow.")
 
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    model_candidates = _get_model_candidates(base_dir)
+    model_path = next((p for p in model_candidates if os.path.exists(p)), None)
+
+    if model_path is None:
+        log.warning("No VAD model found. Attempting to train/build automatically...")
+        if _build_vad_model(base_dir):
+            model_candidates = _get_model_candidates(base_dir)
+            model_path = next((p for p in model_candidates if os.path.exists(p)), None)
+
+    if model_path is None:
+        raise RuntimeError(
+            "VAD model is unavailable after build attempt. "
+            "Workflow is blocked until the model is built and loaded."
+        )
+
+    try:
+        # Load the optimized TorchScript model
+        _model = torch.jit.load(model_path)
+        _model.eval()
+        log.info(f"Edge AI Silero VAD loaded from {model_path}")
+    except Exception as e:
+        log.warning(f"Could not load {model_path}: {e}. Retrying with a fresh build...")
+        if _build_vad_model(base_dir):
+            model_candidates = _get_model_candidates(base_dir)
+            model_path = next((p for p in model_candidates if os.path.exists(p)), None)
+            if model_path is not None:
+                try:
+                    _model = torch.jit.load(model_path)
+                    _model.eval()
+                    log.info(f"Edge AI Silero VAD loaded from {model_path}")
+                    return
+                except Exception as e2:
+                    log.error("Could not load rebuilt VAD model at %s: %s", model_path, e2)
+        raise RuntimeError(
+            "VAD model load failed after rebuild. "
+            "Workflow is blocked until model loads successfully."
+        ) from e
 
 def _init_audio_stream():
     """Initialise PyAudio input stream. Called once."""
@@ -79,24 +177,32 @@ def get_audio_chunk() -> bytes | None:
 
 def is_speech(chunk: bytes) -> bool:
     """
-    Run WebRTC VAD on a raw PCM chunk.
+    Run PyTorch INT8 Silero VAD on a raw PCM chunk.
 
     Args:
         chunk: bytes — raw int16 PCM at AUDIO_SAMPLE_RATE
 
     Returns:
-        bool: True if speech detected.
+        bool: True if speech detected above config.VAD_THRESHOLD.
     """
-    global _vad
+    global _model
 
-    if _vad is None:
+    if _model is None:
         _init_vad()
 
-    if _vad is None:
-        return False
+    if _model is None or torch is None:
+        raise RuntimeError("VAD model is not ready. Workflow cannot continue.")
 
     try:
-        return _vad.is_speech(chunk, config.AUDIO_SAMPLE_RATE)
+        tensor_chunk = _prepare_for_silero(chunk)
+        
+        # Inference using the compiled model
+        # Using configured sample rate
+        with torch.no_grad():
+            confidence = _model(tensor_chunk, config.AUDIO_SAMPLE_RATE).item()
+            
+        return confidence > getattr(config, 'VAD_THRESHOLD', 0.5)
+
     except Exception as e:
-        log.error(f"VAD error: {e}")
+        log.error(f"Silero VAD error: {e}")
         return False

@@ -36,14 +36,71 @@ def test_vad():
     silent_frame = np.zeros(frame_samples, dtype=np.int16).tobytes()
 
     result = vad.is_speech(silent_frame, config.AUDIO_SAMPLE_RATE)
-    print(f"  [OK] VAD on silent frame → is_speech={result} (expected False)")
+    print(f"  [OK] VAD on silent frame -> is_speech={result} (expected False)")
 
     # Create a noisy frame (random data simulating speech-like energy)
     noisy_frame = (np.random.normal(0, 5000, frame_samples)).astype(np.int16).tobytes()
     result2 = vad.is_speech(noisy_frame, config.AUDIO_SAMPLE_RATE)
-    print(f"  [OK] VAD on noisy frame  → is_speech={result2}")
+    print(f"  [OK] VAD on noisy frame  -> is_speech={result2}")
 
     return True
+
+
+def test_silero_vad(live_mic=False):
+    """Test that the loaded silero_vad_int8.pt model works."""
+    print(f"\n=== Test 1.5: Silero VAD (INT8) {'[LIVE MIC]' if live_mic else ''} ===")
+    try:
+        import torch
+    except ImportError:
+        print("  [SKIP] PyTorch not installed.")
+        return True
+    
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    model_path = os.path.join(base_dir, "audio", "models", "silero_vad_int8.pt")
+    if not os.path.exists(model_path):
+        print(f"  [FAIL] Model not found at {model_path}")
+        return False
+        
+    try:
+        model = torch.jit.load(model_path)
+        model.eval()
+        print(f"  [OK] Silero VAD model loaded")
+        
+        if not live_mic:
+            dummy = torch.zeros(1, 512, dtype=torch.float32)
+            with torch.no_grad():
+                res = model(dummy, 16000)
+            print(f"  [OK] Inference on silent dummy -> confidence={res.item():.4f}")
+            return True
+        else:
+            import pyaudio
+            import config
+            import struct
+            pa = pyaudio.PyAudio()
+            print("  Recording for 3 seconds... Speak into the mic!")
+            stream = pa.open(format=pyaudio.paInt16, channels=1, rate=config.AUDIO_SAMPLE_RATE, input=True, frames_per_buffer=512)
+            
+            speech_frames = 0
+            total_frames = int(config.AUDIO_SAMPLE_RATE / 512 * 3)
+            for _ in range(total_frames):
+                chunk = stream.read(512, exception_on_overflow=False)
+                audio_int16 = struct.unpack(f"{512}h", chunk)
+                audio_float32 = [x / 32768.0 for x in audio_int16]
+                tensor_chunk = torch.tensor([audio_float32], dtype=torch.float32)
+                with torch.no_grad():
+                    conf = model(tensor_chunk, config.AUDIO_SAMPLE_RATE).item()
+                if conf > 0.5:
+                    speech_frames += 1
+                    
+            print(f"  [OK] Live mic finished. Detected speech in {speech_frames}/{total_frames} frames.")
+            stream.stop_stream()
+            stream.close()
+            pa.terminate()
+            return True
+            
+    except Exception as e:
+        print(f"  [FAIL] {e}")
+        return False
 
 
 def test_feature_extraction():
@@ -88,12 +145,12 @@ def test_vad_processor():
     # Silent frame
     silent = np.zeros(frame_samples, dtype=np.int16).tobytes()
     result = is_speech(silent)
-    print(f"  [OK] Silent frame → is_speech={result}")
+    print(f"  [OK] Silent frame -> is_speech={result}")
 
     # Noisy frame
     noisy = (np.random.normal(0, 5000, frame_samples)).astype(np.int16).tobytes()
     result2 = is_speech(noisy)
-    print(f"  [OK] Noisy frame  → is_speech={result2}")
+    print(f"  [OK] Noisy frame  -> is_speech={result2}")
 
     return True
 
@@ -194,6 +251,7 @@ if __name__ == "__main__":
 
     results = {}
     results["VAD"] = test_vad()
+    results["Silero VAD"] = test_silero_vad()
     results["Feature Extraction"] = test_feature_extraction()
     results["VAD Processor"] = test_vad_processor()
     results["Audio Queue Contract"] = test_audio_queue_contract()
@@ -202,7 +260,8 @@ if __name__ == "__main__":
     try:
         answer = input("\nDo you want to test live microphone capture? (y/n): ").strip().lower()
         if answer == "y":
-            results["Live Mic"] = test_live_mic()
+            results["Live Mic (WebRTC)"] = test_live_mic()
+            results["Live Mic (Silero)"] = test_silero_vad(live_mic=True)
     except (EOFError, KeyboardInterrupt):
         pass
 
