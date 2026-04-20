@@ -201,59 +201,59 @@ if page == "Dashboard":
     # ── Ghost Booking Detection ──
     if not current_bookings.empty and status == "EMPTY":
         ghost = current_bookings.iloc[0]
-            st.warning(f"👻 **Ghost Booking Detected!** The room is currently empty but is booked by **{ghost['booked_by']}** for '{ghost['title']}'.", icon="👻")
-            
-            # Automatically send AI email if not already sent today
-            logs = get_email_logs()
-            today_str = datetime.now().strftime('%Y-%m-%d')
-            
-            already_sent = any(
-                log['organizer'] == ghost['booked_by'] and 
-                ghost['title'] in log['subject'] and
-                log['sent_at'].startswith(today_str) 
-                for log in logs
-            )
-            
-            if already_sent:
-                st.info("✉️ Auto-Admin notification has already been dispatched to the organizer.", icon="ℹ️")
-            else:
-                with st.spinner("✉️ Automatically generating and sending AI notification to organizer..."):
-                    success, result = ai_service.generate_and_send_ghost_booking_email(
-                        organizer=ghost['booked_by'],
-                        title=ghost['title'],
-                        start_time=ghost['start_time'].strftime('%I:%M %p'),
-                        end_time=ghost['end_time'].strftime('%I:%M %p')
-                    )
-                    if success:
-                        add_email_log(ghost['booked_by'], result['to_email'], result['subject'], result['body'])
-                        st.success(f"Notification automatically sent to {result['to_email']}!")
-                        # sleep briefly so user can read message
-                        time.sleep(2)
-                        st.rerun()
+        st.warning(f"👻 **Ghost Booking Detected!** The room is currently empty but is booked by **{ghost['booked_by']}** for '{ghost['title']}'.", icon="👻")
+        
+        # Automatically send AI email if not already sent today
+        logs = get_email_logs()
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        
+        already_sent = any(
+            log['organizer'] == ghost['booked_by'] and 
+            ghost['title'] in log['subject'] and
+            log['sent_at'].startswith(today_str) 
+            for log in logs
+        )
+        
+        if already_sent:
+            st.info("✉️ Auto-Admin notification has already been dispatched to the organizer.", icon="ℹ️")
+        else:
+            with st.spinner("✉️ Automatically generating and sending AI notification to organizer..."):
+                success, result = ai_service.generate_and_send_ghost_booking_email(
+                    organizer=ghost['booked_by'],
+                    title=ghost['title'],
+                    start_time=ghost['start_time'].strftime('%I:%M %p'),
+                    end_time=ghost['end_time'].strftime('%I:%M %p')
+                )
+                if success:
+                    add_email_log(ghost['booked_by'], result['to_email'], result['subject'], result['body'])
+                    st.success(f"Notification automatically sent to {result['to_email']}!")
+                    # sleep briefly so user can read message
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error(f"Failed to auto-send email: {result}")
+        
+        with st.expander("🚀 Claim Room Now!", expanded=False):
+            with st.form("claim_form"):
+                st.write("Take over the room and add your own booking right now.")
+                claim_name = st.text_input("Your Name", placeholder="e.g. Alice")
+                claim_duration = st.number_input("Duration (minutes)", min_value=15, max_value=120, value=30, step=15)
+                claim_submit = st.form_submit_button("Take Over Room")
+                
+                if claim_submit:
+                    if not claim_name.strip():
+                        st.error("Please enter your name to claim the room.")
                     else:
-                        st.error(f"Failed to auto-send email: {result}")
-            
-            with st.expander("🚀 Claim Room Now!", expanded=False):
-                with st.form("claim_form"):
-                    st.write("Take over the room and add your own booking right now.")
-                    claim_name = st.text_input("Your Name", placeholder="e.g. Alice")
-                    claim_duration = st.number_input("Duration (minutes)", min_value=15, max_value=120, value=30, step=15)
-                    claim_submit = st.form_submit_button("Take Over Room")
-                    
-                    if claim_submit:
-                        if not claim_name.strip():
-                            st.error("Please enter your name to claim the room.")
-                        else:
-                            end_dt = now + timedelta(minutes=claim_duration)
-                            add_booking(
-                                f"Takeover: {claim_name}", 
-                                claim_name, 
-                                now.strftime('%Y-%m-%d %H:%M:%S'), 
-                                end_dt.strftime('%Y-%m-%d %H:%M:%S')
-                            )
-                            st.success("Room successfully claimed!")
-                            time.sleep(1.5)
-                            st.rerun()
+                        end_dt = now + timedelta(minutes=claim_duration)
+                        add_booking(
+                            f"Takeover: {claim_name}", 
+                            claim_name, 
+                            now.strftime('%Y-%m-%d %H:%M:%S'), 
+                            end_dt.strftime('%Y-%m-%d %H:%M:%S')
+                        )
+                        st.success("Room successfully claimed!")
+                        time.sleep(1.5)
+                        st.rerun()
 
     st.subheader("Today's Agenda")
     
