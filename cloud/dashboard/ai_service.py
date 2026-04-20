@@ -40,7 +40,7 @@ def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time
             client.api_key = config.OPENAI_API_KEY
             
         response = client.chat.completions.create(
-            model="gpt-4.1-nano", # Or gpt-4 depending on the user's preference
+            model="gpt-4o-mini", # Or gpt-4 depending on the user's preference
             messages=[
                 {"role": "system", "content": "You are a professional corporate administrative assistant."},
                 {"role": "user", "content": prompt}
