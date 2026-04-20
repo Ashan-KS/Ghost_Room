@@ -12,9 +12,10 @@ from streamlit_autorefresh import st_autorefresh
 # Ensure imports work regardless of where the script is run from
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from database import init_db, add_booking, get_bookings, delete_booking, get_calibration_runs
+from database import init_db, add_booking, get_bookings, delete_booking, get_calibration_runs, get_email_logs, add_email_log
 from mqtt_subscriber import start_mqtt, get_current_state, get_calibration_state, reset_calibration_state, publish_command, get_monitoring_state
 import config
+import ai_service
 
 # ==========================================================
 # Initialize Background Systems (Run Once)
@@ -39,7 +40,7 @@ st.set_page_config(
 # ==========================================================
 st.sidebar.title("👻 Ghost Room")
 st.sidebar.markdown("---")
-page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings", "History", "Calibration"])
+page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings", "History", "Calibration", "Email Outbox"])
 st.sidebar.markdown("---")
 auto_refresh = st.sidebar.checkbox("Enable Auto-Refresh (Live Sync)", value=True)
 
@@ -201,6 +202,22 @@ if page == "Dashboard":
         if not current_bookings.empty and status == "EMPTY":
             ghost = current_bookings.iloc[0]
             st.warning(f"👻 **Ghost Booking Detected!** The room is currently empty but is booked by **{ghost['booked_by']}** for '{ghost['title']}'.", icon="👻")
+            
+            if st.button("✉️ AI Notify Organizer", type="primary", use_container_width=True):
+                with st.spinner("Generating and sending AI email..."):
+                    success, result = ai_service.generate_and_send_ghost_booking_email(
+                        organizer=ghost['booked_by'],
+                        title=ghost['title'],
+                        start_time=ghost['start_time'].strftime('%I:%M %p'),
+                        end_time=ghost['end_time'].strftime('%I:%M %p')
+                    )
+                    if success:
+                        add_email_log(ghost['booked_by'], result['to_email'], result['subject'], result['body'])
+                        st.success(f"Notification successfully generated and sent to {result['to_email']}!")
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(f"Failed: {result}")
             
             with st.expander("🚀 Claim Room Now!", expanded=False):
                 with st.form("claim_form"):
@@ -657,5 +674,31 @@ elif page == "Calibration":
                 width='stretch',
                 hide_index=True
             )
-        else:
             st.caption("No calibration runs recorded yet. Run your first calibration above!")
+
+# ==========================================================
+# Page: Email Outbox
+# ==========================================================
+elif page == "Email Outbox":
+    st.title("✉️ Sent AI Notifications")
+    col_header, col_refresh = st.columns([5, 1])
+    with col_header:
+        st.markdown("Logs of automated emails sent to organizers for ghost bookings.")
+    with col_refresh:
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.rerun()
+
+    logs = get_email_logs()
+    if not logs:
+        st.info("No AI notifications have been sent yet.")
+    else:
+        for log in logs:
+            with st.container(border=True):
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    st.markdown(f"**To:** {log['to_email']} (Organizer: {log['organizer']})")
+                    st.markdown(f"**Subject:** {log['subject']}")
+                with c2:
+                    st.caption(f"Sent at: {log['sent_at']}")
+                with st.expander("View Message Body"):
+                    st.text(log['body'])

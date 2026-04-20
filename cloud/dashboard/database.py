@@ -28,6 +28,16 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'success'
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS email_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sent_at DATETIME NOT NULL,
+            organizer TEXT NOT NULL,
+            to_email TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -96,6 +106,36 @@ def get_calibration_runs():
             "duration_s": r[3],
             "samples_collected": r[4],
             "status": r[5],
+        }
+        for r in rows
+    ]
+
+def add_email_log(organizer, to_email, subject, body):
+    """Logs a sent email to the database."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO email_logs (sent_at, organizer, to_email, subject, body) VALUES (?, ?, ?, ?, ?)",
+        (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), organizer, to_email, subject, body)
+    )
+    conn.commit()
+    conn.close()
+
+def get_email_logs():
+    """Retrieves all email logs, most recent first."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id, sent_at, organizer, to_email, subject, body FROM email_logs ORDER BY sent_at DESC")
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {
+            "id": r[0],
+            "sent_at": r[1],
+            "organizer": r[2],
+            "to_email": r[3],
+            "subject": r[4],
+            "body": r[5],
         }
         for r in rows
     ]

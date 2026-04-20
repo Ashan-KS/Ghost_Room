@@ -37,3 +37,5 @@ ipython>=8.15
 # ── Pi only (comment out on laptop) ──────────────────────────────────────────
 # RPi.GPIO>=0.7.1
 # picamera2>=0.3
+
+openai

@@ -3,3 +3,5 @@ paho-mqtt
 pandas
 streamlit-autorefresh
 boto3
+openai
+python-dotenv

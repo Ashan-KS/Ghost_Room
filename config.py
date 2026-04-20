@@ -81,6 +81,12 @@ ENABLE_S3_LOGGING = True
 S3_BUCKET_NAME    = "workspace-agent-logs"
 S3_LOG_PREFIX     = "events/"
 
+# ── AI Notification Settings ──────────────────────────────────────────────────
+OPENAI_API_KEY          = os.getenv("OPENAI_API_KEY", "")
+SMTP_GMAIL_USER         = os.getenv("SMTP_GMAIL_USER", "your-email@gmail.com")
+SMTP_GMAIL_APP_PASSWORD = os.getenv("SMTP_GMAIL_APP_PASSWORD", "your-app-password")
+DEFAULT_ADMIN_EMAIL     = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@example.com")
+
 # ── Model backend ─────────────────────────────────────────────────────────────
 # Options:  "mobilenet"  |  "yolo"
 MODEL_BACKEND = "yolo"
