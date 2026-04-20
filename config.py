@@ -42,7 +42,8 @@ VAD_THRESHOLD     = 0.60   # VAD confidence above this → speech detected
 ANOMALY_THRESHOLD = 0.50   # Anomaly score above this → not baseline (real signal)
 
 # ── State machine ─────────────────────────────────────────────────────────────
-EMPTY_TIMEOUT_SECONDS = 5     # 5 seconds of no signal → flip to EMPTY (for testing)
+EMPTY_TIMEOUT_SECONDS = 5     # 5 seconds of no signal → flip to EMPTY
+IN_USE_TIMEOUT_SECONDS = 5    # 5 seconds of sustained activity → flip to IN_USE
 
 # ── Hardware flag ─────────────────────────────────────────────────────────────
 # Set False on laptops, True when running on Raspberry Pi

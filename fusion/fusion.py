@@ -33,6 +33,7 @@ def fusion_loop():
 
     current_state      = None
     last_signal_time   = 0.0
+    first_signal_time  = 0.0
 
     # Track latest signals for fusion of independent queues
     latest_vision  = False
@@ -78,12 +79,27 @@ def fusion_loop():
             f"Overall Signal: {'YES' if any_signal else 'NO'}"
         )
 
+        # Update trailing metric BEFORE we overwrite last_signal_time
+        time_since_signal = now - last_signal_time if last_signal_time > 0 else float("inf")
+
         if any_signal:
+            # If we've been silent for at least EMPTY_TIMEOUT, treat this as a brand new activity burst
+            if time_since_signal >= config.EMPTY_TIMEOUT_SECONDS:
+                first_signal_time = now
             last_signal_time = now
+            time_since_signal = 0.0
 
         # ── State machine ─────────────────────────────────────────────────────
-        time_since_signal = now - last_signal_time if last_signal_time > 0 else float("inf")
-        new_state = IN_USE if time_since_signal < config.EMPTY_TIMEOUT_SECONDS else EMPTY
+        new_state = current_state
+        
+        # Rule 1: Drop to EMPTY if we haven't seen a signal for a long time
+        if time_since_signal >= config.EMPTY_TIMEOUT_SECONDS:
+            new_state = EMPTY
+            
+        # Rule 2: Jump to IN_USE if the span of our current activity burst exceeds the buffer threshold
+        elif current_state != IN_USE:
+            if (last_signal_time - first_signal_time) >= config.IN_USE_TIMEOUT_SECONDS:
+                new_state = IN_USE
 
         if new_state != current_state:
             log.info(

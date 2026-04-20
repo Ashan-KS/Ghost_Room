@@ -203,8 +203,21 @@ if page == "Dashboard":
             ghost = current_bookings.iloc[0]
             st.warning(f"👻 **Ghost Booking Detected!** The room is currently empty but is booked by **{ghost['booked_by']}** for '{ghost['title']}'.", icon="👻")
             
-            if st.button("✉️ AI Notify Organizer", type="primary", use_container_width=True):
-                with st.spinner("Generating and sending AI email..."):
+            # Automatically send AI email if not already sent today
+            logs = get_email_logs()
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            
+            already_sent = any(
+                log['organizer'] == ghost['booked_by'] and 
+                ghost['title'] in log['subject'] and
+                log['sent_at'].startswith(today_str) 
+                for log in logs
+            )
+            
+            if already_sent:
+                st.info("✉️ Auto-Admin notification has already been dispatched to the organizer.", icon="ℹ️")
+            else:
+                with st.spinner("✉️ Automatically generating and sending AI notification to organizer..."):
                     success, result = ai_service.generate_and_send_ghost_booking_email(
                         organizer=ghost['booked_by'],
                         title=ghost['title'],
@@ -213,11 +226,12 @@ if page == "Dashboard":
                     )
                     if success:
                         add_email_log(ghost['booked_by'], result['to_email'], result['subject'], result['body'])
-                        st.success(f"Notification successfully generated and sent to {result['to_email']}!")
+                        st.success(f"Notification automatically sent to {result['to_email']}!")
+                        # sleep briefly so user can read message
                         time.sleep(2)
                         st.rerun()
                     else:
-                        st.error(f"Failed: {result}")
+                        st.error(f"Failed to auto-send email: {result}")
             
             with st.expander("🚀 Claim Room Now!", expanded=False):
                 with st.form("claim_form"):
