@@ -1,6 +1,13 @@
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# ── Setup local timezone (UTC+5:30) ──
+LOCAL_TZ = timezone(timedelta(hours=5, minutes=30))
+
+def get_local_now():
+    return datetime.now(LOCAL_TZ).replace(tzinfo=None)
+
 
 # Path to SQLite database file
 DB_PATH = os.path.join(os.path.dirname(__file__), "bookings.db")
@@ -116,7 +123,7 @@ def add_email_log(organizer, to_email, subject, body):
     c = conn.cursor()
     c.execute(
         "INSERT INTO email_logs (sent_at, organizer, to_email, subject, body) VALUES (?, ?, ?, ?, ?)",
-        (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), organizer, to_email, subject, body)
+        (get_local_now().strftime('%Y-%m-%d %H:%M:%S'), organizer, to_email, subject, body)
     )
     conn.commit()
     conn.close()

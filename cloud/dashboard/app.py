@@ -16,6 +16,13 @@ from database import init_db, add_booking, get_bookings, delete_booking, get_cal
 from mqtt_subscriber import start_mqtt, get_current_state, get_calibration_state, reset_calibration_state, publish_command, get_monitoring_state
 import config
 import ai_service
+from datetime import timezone
+
+# ── Setup local timezone (UTC+5:30) ──
+LOCAL_TZ = timezone(timedelta(hours=5, minutes=30))
+
+def get_local_now():
+    return datetime.now(LOCAL_TZ).replace(tzinfo=None)
 
 # ==========================================================
 # Initialize Background Systems (Run Once)
@@ -52,7 +59,7 @@ s3_demo_mode = False
 if local_test_mode:
     s3_demo_mode = st.sidebar.checkbox("S3 Demo Mode (Mock Data)", value=False, help="Show sample charts without S3 connection.")
     mock_status = st.sidebar.radio("Mock Room Status", ["EMPTY", "IN_USE", "UNKNOWN"], index=0)
-    mock_last_updated = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+    mock_last_updated = get_local_now().strftime("%Y-%m-%d %I:%M %p")
 
 
 
@@ -157,8 +164,8 @@ if page == "Dashboard":
 
     # ── Pre-process Calendar Timings ──
     bookings = get_bookings()
-    today = datetime.now().date()
-    now = pd.to_datetime(datetime.now())
+    today = get_local_now().date()
+    now = pd.to_datetime(get_local_now())
     
     today_df = pd.DataFrame()
     current_bookings = pd.DataFrame()
@@ -205,7 +212,7 @@ if page == "Dashboard":
         
         # Automatically send AI email if not already sent today
         logs = get_email_logs()
-        today_str = datetime.now().strftime('%Y-%m-%d')
+        today_str = get_local_now().strftime('%Y-%m-%d')
         
         already_sent = any(
             log['organizer'] == ghost['booked_by'] and 
@@ -265,7 +272,7 @@ if page == "Dashboard":
         today_df = df[df['start_time'].dt.date == today].copy()
         today_df = today_df.sort_values(by='start_time')
         
-        now = pd.to_datetime(datetime.now())
+        now = pd.to_datetime(get_local_now())
         
         def get_row_status(row):
             is_current = row['start_time'] <= now <= row['end_time']
@@ -332,7 +339,7 @@ elif page == "History":
         if use_mock:
             # Generate 30 mock events for a "full day" visualization
             mock_data = []
-            now = datetime.now().replace(hour=17, minute=0, second=0, microsecond=0)
+            now = get_local_now().replace(hour=17, minute=0, second=0, microsecond=0)
             organizers = ["Alice", "Bob", "Charlie", "Diana"]
             
             for i in range(30):
@@ -552,7 +559,7 @@ elif page == "Manage Bookings":
             df['start_time'] = pd.to_datetime(df['start_time'])
             df['end_time'] = pd.to_datetime(df['end_time'])
             
-            today = datetime.now().date()
+            today = get_local_now().date()
             future_df = df[df['start_time'].dt.date >= today].copy()
             future_df = future_df.sort_values(by='start_time')
             
