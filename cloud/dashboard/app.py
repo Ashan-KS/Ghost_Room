@@ -155,6 +155,21 @@ if page == "Dashboard":
                             time.sleep(1)
                             st.rerun()
 
+    # ── Pre-process Calendar Timings ──
+    bookings = get_bookings()
+    today = datetime.now().date()
+    now = pd.to_datetime(datetime.now())
+    
+    today_df = pd.DataFrame()
+    current_bookings = pd.DataFrame()
+    
+    if bookings:
+        df = pd.DataFrame(bookings)
+        df['start_time'] = pd.to_datetime(df['start_time'])
+        df['end_time'] = pd.to_datetime(df['end_time'])
+        today_df = df[df['start_time'].dt.date == today].copy()
+        current_bookings = today_df[(today_df['start_time'] <= now) & (today_df['end_time'] >= now)]
+
     # ── Row 2: Occupancy & Booking Overview ──
     col1, col2 = st.columns([1, 1])
     
@@ -171,36 +186,21 @@ if page == "Dashboard":
             
     with col2:
         with st.container(border=True):
-            st.subheader("📅 Today's Bookings")
-            bookings = get_bookings()
-            today = datetime.now().date()
-            today_df = pd.DataFrame()
-            
-            if bookings:
-                df = pd.DataFrame(bookings)
-                df['start_time'] = pd.to_datetime(df['start_time'])
-                today_df = df[df['start_time'].dt.date == today]
-                
-            today_count = len(today_df)
-            st.markdown(f"## {today_count} Meetings")
-            if today_count == 0:
-                st.caption("The room is completely free today.")
+            st.subheader("📅 Active Meeting")
+            if current_bookings.empty:
+                st.markdown("## No Ongoing Meeting")
+                st.caption(f"The room is currently unbooked. Server Time: **{now.strftime('%I:%M %p')}**")
             else:
-                st.caption("Check the chronological agenda below.")
+                curr = current_bookings.iloc[0]
+                st.markdown(f"## {curr['title']}")
+                time_str = f"{curr['start_time'].strftime('%I:%M %p')} - {curr['end_time'].strftime('%I:%M %p')}"
+                st.caption(f"**Host:** {curr['booked_by']} | **Time:** {time_str}")
 
     st.markdown("<br>", unsafe_allow_html=True)
     
     # ── Ghost Booking Detection ──
-    if not today_df.empty:
-        now = pd.to_datetime(datetime.now())
-        # Add timezone-naive datetime comparison if needed, but since sqlite is naive, pandas should be naive
-        df['end_time'] = pd.to_datetime(df['end_time'])
-        today_df = df[df['start_time'].dt.date == today].copy()
-        
-        current_bookings = today_df[(today_df['start_time'] <= now) & (today_df['end_time'] >= now)]
-        
-        if not current_bookings.empty and status == "EMPTY":
-            ghost = current_bookings.iloc[0]
+    if not current_bookings.empty and status == "EMPTY":
+        ghost = current_bookings.iloc[0]
             st.warning(f"👻 **Ghost Booking Detected!** The room is currently empty but is booked by **{ghost['booked_by']}** for '{ghost['title']}'.", icon="👻")
             
             # Automatically send AI email if not already sent today
