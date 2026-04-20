@@ -35,6 +35,10 @@ def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time
     """
     
     try:
+        # Re-initialize client if necessary to ensure it picks up the loaded API key
+        if not client.api_key:
+            client.api_key = config.OPENAI_API_KEY
+            
         response = client.chat.completions.create(
             model="gpt-4.1-nano", # Or gpt-4 depending on the user's preference
             messages=[
