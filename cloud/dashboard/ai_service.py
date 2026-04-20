@@ -47,7 +47,7 @@ def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time
         email_body = response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error generating AI email: {e}")
-        return False, "Failed to generate email content via OpenAI."
+        return False, f"Failed to generate email content via OpenAI. Error: {e}"
 
     # 2. Send the Email via SMTP
     subject = f"Notice: Unattended Room Booking Detection - {title}"
