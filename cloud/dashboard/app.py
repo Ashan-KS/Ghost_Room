@@ -45,7 +45,7 @@ st.set_page_config(
 # ==========================================================
 # Sidebar Navigation
 # ==========================================================
-st.sidebar.title("🤖 Workspace Agent")
+st.sidebar.title("👻Workspace Agent")
 st.sidebar.markdown("---")
 page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings", "History", "Calibration", "Email Outbox"])
 st.sidebar.markdown("---")
@@ -121,7 +121,7 @@ if page == "Dashboard":
 
     # ── Row 1: Workspace Agent ──
     with st.container(border=True):
-        st.subheader("💼 Workspace Agent Status", help="Controls the occupancy detection sensors (camera, audio, anomaly).")
+        st.subheader("💻Workspace Agent Status", help="Controls the occupancy detection sensors (camera, audio, anomaly).")
         e1, e2, e3 = st.columns([2, 2, 2])
         
         with e1:
