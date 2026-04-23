@@ -13,26 +13,15 @@ import config
 from openai import OpenAI
 client = OpenAI(api_key=config.OPENAI_API_KEY)
 
-def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time, to_email=None):
-    """
-    Generates a professional email using OpenAI and sends it via Gmail SMTP.
-    If to_email is not provided, it falls back to the DEFAULT_ADMIN_EMAIL from config.
-    """
-    # Determine recipients (Organizer + Admin)
-    recipients = []
-    if to_email:
-        recipients.append(to_email)
-    
-    admin_email = getattr(config, 'DEFAULT_ADMIN_EMAIL', None)
-    if admin_email and admin_email not in recipients:
-        recipients.append(admin_email)
-        
-    if not recipients:
-        return False, "No destination email addresses found."
-    
-    to_str = ", ".join(recipients)
-    
-    # 1. Generate Email Content using OpenAI
+
+def _ensure_client():
+    """Re-initialize client if necessary to ensure it picks up the loaded API key."""
+    if not client.api_key:
+        client.api_key = config.OPENAI_API_KEY
+
+
+def _generate_organizer_email(organizer, title, start_time, end_time):
+    """Generate a professional email addressed to the meeting organizer."""
     prompt = f"""
     You are an automated admin assistant for a corporate meeting room booking system.
     You need to write a professional email to a meeting organizer named '{organizer}'.
@@ -46,48 +35,106 @@ def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time
     Do not use placeholders like [Your Name] or [Company Name], sign off as "Meeting Room Auto-Admin".
     """
     
-    try:
-        # Re-initialize client if necessary to ensure it picks up the loaded API key
-        if not client.api_key:
-            client.api_key = config.OPENAI_API_KEY
-            
-        response = client.chat.completions.create(
-            model="gpt-4o-mini", # Or gpt-4 depending on the user's preference
-            messages=[
-                {"role": "system", "content": "You are a professional corporate administrative assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=250
-        )
-        email_body = response.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"Error generating AI email: {e}")
-        return False, f"Failed to generate email content via OpenAI. Error: {e}"
+    _ensure_client()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a professional corporate administrative assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+        max_tokens=250
+    )
+    return response.choices[0].message.content.strip()
 
-    # 2. Send the Email via SMTP
-    subject = f"Notice: Unattended Room Booking Detection - {title}"
+
+def _generate_admin_email(organizer, organizer_email, title, start_time, end_time):
+    """Generate an internal report email addressed to the system administrator."""
+    prompt = f"""
+    You are an automated admin assistant for a corporate meeting room booking system.
+    You need to write an internal report email to the System Administrator.
+
+    The system detected a "Ghost Booking":
+    - Organizer: {organizer} ({organizer_email or 'no email on file'})
+    - Meeting Title: '{title}'
+    - Scheduled Time: {start_time} to {end_time}
+
+    A "Ghost Booking" means the room was booked but no one showed up during the scheduled time.
     
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = config.SMTP_GMAIL_USER
-        msg['To'] = to_str
-        msg['Subject'] = subject
-        
-        msg.attach(MIMEText(email_body, 'plain'))
-        
-        # Connect to Gmail SMTP server
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        
-        # Login
-        server.login(config.SMTP_GMAIL_USER, config.SMTP_GMAIL_APP_PASSWORD)
-        
-        # Send
-        server.send_message(msg)
-        server.quit()
-        
-        return True, {"subject": subject, "body": email_body, "to_email": to_str}
-    except Exception as e:
-        print(f"Error sending email via SMTP: {e}")
-        return False, f"Failed to send email via SMTP: {e}"
+    Write a short, professional internal notification summarizing this detection for the admin's records.
+    Include the organizer's name and email so the admin knows who was notified.
+    Mention that the organizer has already been notified separately.
+    Do not use placeholders like [Your Name] or [Company Name], sign off as "Meeting Room Auto-Admin".
+    """
+    
+    _ensure_client()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a professional corporate administrative assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+        max_tokens=250
+    )
+    return response.choices[0].message.content.strip()
+
+
+def _send_email(to_email, subject, body):
+    """Send a single email via Gmail SMTP."""
+    msg = MIMEMultipart()
+    msg['From'] = config.SMTP_GMAIL_USER
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+    
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    server.login(config.SMTP_GMAIL_USER, config.SMTP_GMAIL_APP_PASSWORD)
+    server.send_message(msg)
+    server.quit()
+
+
+def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time, to_email=None):
+    """
+    Generates and sends TWO separate ghost booking emails:
+      1. A notification to the meeting organizer (using their booking email).
+      2. An internal report to the system admin (using DEFAULT_ADMIN_EMAIL from .env).
+    
+    Returns a list of result dicts for each email sent, so the caller can log them individually.
+    """
+    admin_email = getattr(config, 'DEFAULT_ADMIN_EMAIL', None)
+    results = []  # Each entry: {"to_email": ..., "subject": ..., "body": ...}
+    errors = []
+
+    # ── 1. Email to the Organizer ──
+    if to_email:
+        try:
+            organizer_body = _generate_organizer_email(organizer, title, start_time, end_time)
+            organizer_subject = f"Notice: Unattended Room Booking Detection - {title}"
+            _send_email(to_email, organizer_subject, organizer_body)
+            results.append({"to_email": to_email, "subject": organizer_subject, "body": organizer_body, "recipient_type": "organizer"})
+        except Exception as e:
+            print(f"Error sending organizer email: {e}")
+            errors.append(f"Organizer email failed: {e}")
+
+    # ── 2. Email to the System Admin ──
+    if admin_email and admin_email != to_email:
+        try:
+            admin_body = _generate_admin_email(organizer, to_email, title, start_time, end_time)
+            admin_subject = f"[Admin Report] Ghost Booking Detected - {title}"
+            _send_email(admin_email, admin_subject, admin_body)
+            results.append({"to_email": admin_email, "subject": admin_subject, "body": admin_body, "recipient_type": "admin"})
+        except Exception as e:
+            print(f"Error sending admin email: {e}")
+            errors.append(f"Admin email failed: {e}")
+    elif admin_email and admin_email == to_email:
+        # Admin IS the organizer — send a single combined email (already sent above)
+        pass
+
+    if not results and errors:
+        return False, "; ".join(errors)
+    elif not results:
+        return False, "No destination email addresses found."
+    
+    return True, results

@@ -224,7 +224,7 @@ if page == "Dashboard":
         if already_sent:
             st.info("✉️ Auto-Admin notification has already been dispatched to the organizer.", icon="ℹ️")
         else:
-            with st.spinner("✉️ Automatically generating and sending AI notification to organizer..."):
+            with st.spinner("✉️ Automatically generating and sending AI notifications..."):
                 success, result = ai_service.generate_and_send_ghost_booking_email(
                     organizer=ghost['booked_by'],
                     title=ghost['title'],
@@ -233,9 +233,11 @@ if page == "Dashboard":
                     to_email=ghost.get('organizer_email')
                 )
                 if success:
-                    add_email_log(ghost['booked_by'], result['to_email'], result['subject'], result['body'])
-                    st.success(f"Notification automatically sent to {result['to_email']}!")
-                    # sleep briefly so user can read message
+                    # result is a list of dicts, one per email sent
+                    for email_entry in result:
+                        add_email_log(ghost['booked_by'], email_entry['to_email'], email_entry['subject'], email_entry['body'])
+                    sent_to = ", ".join(e['to_email'] for e in result)
+                    st.success(f"Notifications sent to: {sent_to}")
                     time.sleep(2)
                     st.rerun()
                 else:
