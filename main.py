@@ -28,12 +28,23 @@ os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false"
 os.environ["OPENCV_LOG_LEVEL"] = "FATAL"
 
 # Hide PyAudio / ALSA "Unknown PCM" spam
+# IMPORTANT: _alsa_error_handler must be kept at module scope.
+# If it were a local/temporary, Python's GC would free it immediately,
+# leaving ALSA with a dangling function pointer → silent segfault.
+_alsa_error_handler = None
 try:
     if sys.platform.startswith("linux"):
         asound = ctypes.cdll.LoadLibrary("libasound.so.2")
-        # Overwrite the ALSA error handler with a null pointer to silence it.
-        c_error_handler = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
-        asound.snd_lib_error_set_handler(c_error_handler(lambda file, line, function, err, fmt: None))
+        _AlsaErrorHandler = ctypes.CFUNCTYPE(
+            None,
+            ctypes.c_char_p, ctypes.c_int,
+            ctypes.c_char_p, ctypes.c_int,
+            ctypes.c_char_p,
+        )
+        _alsa_error_handler = _AlsaErrorHandler(
+            lambda file, line, function, err, fmt: None
+        )
+        asound.snd_lib_error_set_handler(_alsa_error_handler)
 except Exception:
     pass
 
