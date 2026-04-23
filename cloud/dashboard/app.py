@@ -37,7 +37,7 @@ start_mqtt()
 # ==========================================================
 st.set_page_config(
     page_title="Workspace Agent Dashboard",
-    page_icon="💼",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -45,7 +45,7 @@ st.set_page_config(
 # ==========================================================
 # Sidebar Navigation
 # ==========================================================
-st.sidebar.title("💼 Workspace Agent")
+st.sidebar.title("🤖 Workspace Agent")
 st.sidebar.markdown("---")
 page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings", "History", "Calibration", "Email Outbox"])
 st.sidebar.markdown("---")
