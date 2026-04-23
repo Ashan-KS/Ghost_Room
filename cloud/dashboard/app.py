@@ -119,9 +119,9 @@ if page == "Dashboard":
         status = "UNKNOWN"
         last_updated = mon_updated or last_updated
 
-    # ── Row 1: Edge Agent ──
+    # ── Row 1: Workspace Agent ──
     with st.container(border=True):
-        st.subheader("🛡️ Edge Agent Status", help="Controls the occupancy detection sensors (camera, audio, anomaly).")
+        st.subheader("💼 Workspace Agent Status", help="Controls the occupancy detection sensors (camera, audio, anomaly).")
         e1, e2, e3 = st.columns([2, 2, 2])
         
         with e1:
@@ -602,12 +602,12 @@ elif page == "Calibration":
         calib_runs = get_calibration_runs()
         last_success = [r for r in calib_runs if r["status"] == "success"]
         if last_success:
-            st.success(f"✅ Baseline model verified on Edge Agent. Last run logged: {last_success[-1]['completed_at']}", icon="✅")
+            st.success(f"✅ Baseline model verified on Workspace Agent. Last run logged: {last_success[-1]['completed_at']}", icon="✅")
         else:
-            st.success(f"✅ Baseline model verified on Edge Agent and is actively running.", icon="✅")
+            st.success(f"✅ Baseline model verified on Workspace Agent and is actively running.", icon="✅")
     else:
         st.error(
-            "🔴 **No baseline model detected on the Edge Agent.**\n\n"
+            "🔴 **No baseline model detected on the Workspace Agent.**\n\n"
             "Anomaly detection is currently disabled — the system is running with vision + VAD only. "
             "Run a calibration below to establish a baseline.",
             icon="🔴"
@@ -669,7 +669,7 @@ elif page == "Calibration":
         elif calib_status == "error":
             st.error(f"❌ Calibration error: {message}")
         elif st.session_state.calib_triggered:
-            st.info("📡 Command sent. Waiting for the edge device to respond...")
+            st.info("📡 Command sent. Waiting for the workspace agent to respond...")
             st_autorefresh(interval=1000, key="calibration_waiting_autorefresh")
         else:
             st.info("💤 No calibration in progress. Use the controls above to start one.")
