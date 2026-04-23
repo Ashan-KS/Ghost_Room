@@ -229,7 +229,8 @@ if page == "Dashboard":
                     organizer=ghost['booked_by'],
                     title=ghost['title'],
                     start_time=ghost['start_time'].strftime('%I:%M %p'),
-                    end_time=ghost['end_time'].strftime('%I:%M %p')
+                    end_time=ghost['end_time'].strftime('%I:%M %p'),
+                    to_email=ghost.get('organizer_email')
                 )
                 if success:
                     add_email_log(ghost['booked_by'], result['to_email'], result['subject'], result['body'])
@@ -244,17 +245,19 @@ if page == "Dashboard":
             with st.form("claim_form"):
                 st.write("Take over the room and add your own booking right now.")
                 claim_name = st.text_input("Your Name", placeholder="e.g. Alice")
+                claim_email = st.text_input("Your Email", placeholder="e.g. alice@example.com")
                 claim_duration = st.number_input("Duration (minutes)", min_value=15, max_value=120, value=30, step=15)
                 claim_submit = st.form_submit_button("Take Over Room")
                 
                 if claim_submit:
-                    if not claim_name.strip():
-                        st.error("Please enter your name to claim the room.")
+                    if not claim_name.strip() or not claim_email.strip():
+                        st.error("Please enter both your name and email to claim the room.")
                     else:
                         end_dt = now + timedelta(minutes=claim_duration)
                         add_booking(
                             f"Takeover: {claim_name}", 
                             claim_name, 
+                            claim_email,
                             now.strftime('%Y-%m-%d %H:%M:%S'), 
                             end_dt.strftime('%Y-%m-%d %H:%M:%S')
                         )
@@ -516,6 +519,7 @@ elif page == "Manage Bookings":
             with col1:
                 title = st.text_input("Meeting Title", placeholder="e.g. Daily Standup")
                 booked_by = st.text_input("Organizer Name", placeholder="e.g. Alice")
+                organizer_email = st.text_input("Organizer Email", placeholder="e.g. organizer@example.com")
             with col2:
                 date = st.date_input("Date")
                 start_time = st.time_input("Start Time", value=None)
@@ -524,8 +528,8 @@ elif page == "Manage Bookings":
             submit = st.form_submit_button("Book Room", type="primary", use_container_width=True)
             
             if submit:
-                if not title.strip() or not booked_by.strip():
-                    st.error("Please fill in both the Meeting Title and Organizer fields.")
+                if not title.strip() or not booked_by.strip() or not organizer_email.strip():
+                    st.error("Please fill in the Meeting Title, Organizer Name, and Email fields.")
                 elif start_time is None:
                     st.error("Please select a precise Start Time from the dropdown.")
                 else:
@@ -535,6 +539,7 @@ elif page == "Manage Bookings":
                     add_booking(
                         title, 
                         booked_by, 
+                        organizer_email,
                         start_dt.strftime('%Y-%m-%d %H:%M:%S'), 
                         end_dt.strftime('%Y-%m-%d %H:%M:%S')
                     )

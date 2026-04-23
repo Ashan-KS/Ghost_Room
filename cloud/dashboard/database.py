@@ -21,6 +21,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             booked_by TEXT NOT NULL,
+            organizer_email TEXT,
             start_time DATETIME NOT NULL,
             end_time DATETIME NOT NULL
         )
@@ -48,13 +49,13 @@ def init_db():
     conn.commit()
     conn.close()
 
-def add_booking(title, booked_by, start_time, end_time):
+def add_booking(title, booked_by, organizer_email, start_time, end_time):
     """Inserts a new booking into the database."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO bookings (title, booked_by, start_time, end_time) VALUES (?, ?, ?, ?)",
-        (title, booked_by, start_time, end_time)
+        "INSERT INTO bookings (title, booked_by, organizer_email, start_time, end_time) VALUES (?, ?, ?, ?, ?)",
+        (title, booked_by, organizer_email, start_time, end_time)
     )
     conn.commit()
     conn.close()
@@ -63,7 +64,7 @@ def get_bookings():
     """Retrieves all bookings ordered by start time."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT id, title, booked_by, start_time, end_time FROM bookings ORDER BY start_time ASC")
+    c.execute("SELECT id, title, booked_by, organizer_email, start_time, end_time FROM bookings ORDER BY start_time ASC")
     rows = c.fetchall()
     conn.close()
     
@@ -74,8 +75,9 @@ def get_bookings():
             "id": row[0],
             "title": row[1],
             "booked_by": row[2],
-            "start_time": row[3],
-            "end_time": row[4]
+            "organizer_email": row[3],
+            "start_time": row[4],
+            "end_time": row[5]
         })
     return bookings
 

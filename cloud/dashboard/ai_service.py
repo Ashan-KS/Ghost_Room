@@ -18,7 +18,19 @@ def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time
     Generates a professional email using OpenAI and sends it via Gmail SMTP.
     If to_email is not provided, it falls back to the DEFAULT_ADMIN_EMAIL from config.
     """
-    to_email = to_email or config.DEFAULT_ADMIN_EMAIL
+    # Determine recipients (Organizer + Admin)
+    recipients = []
+    if to_email:
+        recipients.append(to_email)
+    
+    admin_email = getattr(config, 'DEFAULT_ADMIN_EMAIL', None)
+    if admin_email and admin_email not in recipients:
+        recipients.append(admin_email)
+        
+    if not recipients:
+        return False, "No destination email addresses found."
+    
+    to_str = ", ".join(recipients)
     
     # 1. Generate Email Content using OpenAI
     prompt = f"""
@@ -59,7 +71,7 @@ def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time
     try:
         msg = MIMEMultipart()
         msg['From'] = config.SMTP_GMAIL_USER
-        msg['To'] = to_email
+        msg['To'] = to_str
         msg['Subject'] = subject
         
         msg.attach(MIMEText(email_body, 'plain'))
@@ -75,7 +87,7 @@ def generate_and_send_ghost_booking_email(organizer, title, start_time, end_time
         server.send_message(msg)
         server.quit()
         
-        return True, {"subject": subject, "body": email_body, "to_email": to_email}
+        return True, {"subject": subject, "body": email_body, "to_email": to_str}
     except Exception as e:
         print(f"Error sending email via SMTP: {e}")
         return False, f"Failed to send email via SMTP: {e}"
