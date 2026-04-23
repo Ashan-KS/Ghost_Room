@@ -36,8 +36,8 @@ start_mqtt()
 # Streamlit UI Configuration
 # ==========================================================
 st.set_page_config(
-    page_title="Ghost Room Dashboard",
-    page_icon="👻",
+    page_title="Workspace Agent Dashboard",
+    page_icon="💼",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -45,7 +45,7 @@ st.set_page_config(
 # ==========================================================
 # Sidebar Navigation
 # ==========================================================
-st.sidebar.title("👻 Ghost Room")
+st.sidebar.title("💼 Workspace Agent")
 st.sidebar.markdown("---")
 page = st.sidebar.radio("Navigation", ["Dashboard", "Manage Bookings", "History", "Calibration", "Email Outbox"])
 st.sidebar.markdown("---")
@@ -67,7 +67,7 @@ if local_test_mode:
 # Page: Dashboard
 # ==========================================================
 if page == "Dashboard":
-    st.title("🖥️ Meeting Room Status Dashboard")
+    st.title("🖥️ Workspace Agent Dashboard")
     st.markdown("Real-time monitoring and analytics for **Room A**.")
 
     # ── Calibration warning banner ──
