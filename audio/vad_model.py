@@ -127,6 +127,50 @@ def prune_model(model, amount=0.2):
             prune.remove(module, 'weight') # Make permanent
     return model
 
+def fine_tune_model(model, train_loader, epochs=3):
+    """
+    Fine-tunes the PyTorch model to recover accuracy lost from pruning.
+    """
+    log.info(f"Starting fine-tuning for {epochs} epochs...")
+    import torch.nn as nn
+    import torch.optim as optim
+    
+    model.train()
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    criterion = nn.BCELoss()
+    
+    frame_samples = get_vad_frame_samples(SAMPLE_RATE)
+    
+    for epoch in range(epochs):
+        total_loss = 0.0
+        batches = 0
+        for i, (audio_batch, labels) in enumerate(train_loader):
+            optimizer.zero_grad()
+            
+            if hasattr(model, 'reset_states'):
+                model.reset_states()
+                
+            frames = audio_batch.unfold(dimension=-1, size=frame_samples, step=frame_samples)
+            batch_size = audio_batch.size(0)
+            outputs = torch.zeros(batch_size, frames.shape[1], device=audio_batch.device)
+            
+            for frame_idx in range(frames.shape[1]):
+                out = model(frames[:, frame_idx, :], SAMPLE_RATE)
+                outputs[:, frame_idx] = out.squeeze(-1)
+                
+            chunk_prob = outputs.max(dim=1)[0]
+            loss = criterion(chunk_prob, labels.float())
+            loss.backward()
+            optimizer.step()
+            
+            total_loss += loss.item()
+            batches += 1
+            
+        avg_loss = total_loss / max(1, batches)
+        log.info(f"Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f}")
+        
+    return model
+
 
 def quantize_model(model, calibration_loader):
     """
@@ -193,21 +237,20 @@ def main():
     print("Pruning the model...")
     model = prune_model(model, amount=0.2)
     
-    # 3. (Important) Fine-tune the model here using your dataset to recover accuracy
-    # Requires a standard PyTorch training loop over your 2-second chunks.
-    log.warning("Skipping fine-tuning step. In practice, YOU MUST FINE-TUNE HERE!")
-    
-    # 4. Load dataset for calibration
-    # Automatically resolve the processed_audio path in the same directory as this script
+    # 3. Load dataset for training and calibration
     current_dir = os.path.dirname(os.path.abspath(__file__))
     DATASET_PATH = os.path.join(current_dir, "processed_audio")
-    calib_loader = get_calibration_dataloader(DATASET_PATH)
+    data_loader = get_calibration_dataloader(DATASET_PATH)
+
+    # 4. Fine-tune the model here using your dataset to recover accuracy
+    print("Fine-tuning the model...")
+    model = fine_tune_model(model, data_loader, epochs=3)
     
     # 5. Quantize to INT8
     # NOTE: PyTorch quantized models sometimes require the input to be `torch.quantize_per_tensor`
     # We will handle this in `vad_processor.py`.
     print("Quantizing the model to INT8...")
-    quantized_model = quantize_model(model, calib_loader)
+    quantized_model = quantize_model(model, data_loader)
     
     # 6. Save the optimized model
     current_dir = os.path.dirname(os.path.abspath(__file__))
