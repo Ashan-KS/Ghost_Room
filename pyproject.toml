@@ -20,5 +20,16 @@ dependencies = [
     "opencv-python-headless>=4.8",
     "tensorflow==2.21.0",
     "ultralytics==8.4.24",
-    "boto3"
+    "boto3",
+    "torch",
+    "torchaudio"
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
