@@ -210,7 +210,9 @@ def main():
     quantized_model = quantize_model(model, calib_loader)
     
     # 6. Save the optimized model
-    save_path = "models/silero_vad_int8.pt"
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.dirname(current_dir)
+    save_path = os.path.join(base_dir, "models", "silero_vad_int8.pt")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
     # Using TorchScript (JIT) is highly recommended for edge deployment
