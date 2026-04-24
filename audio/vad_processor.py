@@ -19,6 +19,8 @@ import os
 import subprocess
 import sys
 
+log = logging.getLogger(__name__)
+
 # We need PyTorch for Edge AI inferencing
 try:
     log.info("[vad_processor] Importing PyTorch...")
@@ -28,7 +30,6 @@ except ImportError as exc:
     log.error("[vad_processor] PyTorch import FAILED: %s", exc)
     torch = None
 
-log = logging.getLogger(__name__)
 
 _model    = None
 _stream   = None
