@@ -21,8 +21,11 @@ import sys
 
 # We need PyTorch for Edge AI inferencing
 try:
+    log.info("[vad_processor] Importing PyTorch...")
     import torch
-except ImportError:
+    log.info("[vad_processor] PyTorch %s imported OK (arch: %s)", torch.__version__, torch.get_default_dtype())
+except ImportError as exc:
+    log.error("[vad_processor] PyTorch import FAILED: %s", exc)
     torch = None
 
 log = logging.getLogger(__name__)
@@ -89,19 +92,32 @@ def _prepare_for_silero(chunk: bytes):
 def _init_vad():
     """Initialise PyTorch Silero VAD (INT8 optimized). Called once."""
     global _model
-    
+    log.info("[_init_vad] ── BEGIN VAD INIT ──")
+
     if torch is None:
         raise RuntimeError("PyTorch is not installed. Cannot start VAD workflow.")
 
+    # Report quantization backend availability
+    try:
+        supported = list(torch.backends.quantized.supported_engines)
+        log.info("[_init_vad] Quantized backends available: %s", supported)
+        log.info("[_init_vad] Current quantized engine: %s", torch.backends.quantized.engine)
+    except Exception as e:
+        log.warning("[_init_vad] Could not query quantized backends: %s", e)
+
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     model_candidates = _get_model_candidates(base_dir)
+    log.info("[_init_vad] Model search paths: %s", model_candidates)
+
     model_path = next((p for p in model_candidates if os.path.exists(p)), None)
+    log.info("[_init_vad] Resolved model path: %s", model_path)
 
     if model_path is None:
-        log.warning("No VAD model found. Attempting to train/build automatically...")
+        log.warning("[_init_vad] No VAD model found. Attempting to train/build automatically...")
         if _build_vad_model(base_dir):
             model_candidates = _get_model_candidates(base_dir)
             model_path = next((p for p in model_candidates if os.path.exists(p)), None)
+            log.info("[_init_vad] After build, resolved model path: %s", model_path)
 
     if model_path is None:
         raise RuntimeError(
@@ -110,23 +126,33 @@ def _init_vad():
         )
 
     try:
-        # Load the optimized TorchScript model
+        log.info("[_init_vad] Loading TorchScript model from %s ...", model_path)
         _model = torch.jit.load(model_path)
+        log.info("[_init_vad] torch.jit.load() succeeded.")
         _model.eval()
-        log.info(f"Edge AI Silero VAD loaded from {model_path}")
+        log.info("[_init_vad] model.eval() done.")
+
+        # Smoke-test: run one dummy inference to catch backend mismatches early
+        log.info("[_init_vad] Running smoke-test inference (512 samples @ 16kHz)...")
+        dummy = torch.zeros(1, 512)
+        result = _model(dummy, 16000)
+        log.info("[_init_vad] Smoke-test result: %s  ── VAD INIT OK ──", result)
+
     except Exception as e:
-        log.warning(f"Could not load {model_path}: {e}. Retrying with a fresh build...")
+        log.error("[_init_vad] Could not load %s: %s", model_path, e, exc_info=True)
+        log.warning("[_init_vad] Retrying with a fresh build...")
         if _build_vad_model(base_dir):
             model_candidates = _get_model_candidates(base_dir)
             model_path = next((p for p in model_candidates if os.path.exists(p)), None)
             if model_path is not None:
                 try:
+                    log.info("[_init_vad] Retrying torch.jit.load(%s)...", model_path)
                     _model = torch.jit.load(model_path)
                     _model.eval()
-                    log.info(f"Edge AI Silero VAD loaded from {model_path}")
+                    log.info("[_init_vad] Retry succeeded  ── VAD INIT OK ──")
                     return
                 except Exception as e2:
-                    log.error("Could not load rebuilt VAD model at %s: %s", model_path, e2)
+                    log.error("[_init_vad] Retry also failed: %s", e2, exc_info=True)
         raise RuntimeError(
             "VAD model load failed after rebuild. "
             "Workflow is blocked until model loads successfully."
@@ -135,10 +161,31 @@ def _init_vad():
 def _init_audio_stream():
     """Initialise PyAudio input stream. Called once."""
     global _stream, _pyaudio
+    log.info("[_init_audio_stream] ── BEGIN AUDIO STREAM INIT ──")
     try:
+        log.info("[_init_audio_stream] Importing pyaudio...")
         import pyaudio
+        log.info("[_init_audio_stream] pyaudio imported OK.")
+
+        log.info("[_init_audio_stream] Creating PyAudio instance...")
         _pyaudio = pyaudio.PyAudio()
+        log.info("[_init_audio_stream] PyAudio instance created.")
+
+        # List available devices for diagnostics
+        dev_count = _pyaudio.get_device_count()
+        log.info("[_init_audio_stream] Found %d audio devices:", dev_count)
+        for i in range(dev_count):
+            try:
+                info = _pyaudio.get_device_info_by_index(i)
+                log.info("  [%d] %s  (inputs=%d, rate=%.0f)",
+                         i, info['name'], info['maxInputChannels'], info['defaultSampleRate'])
+            except Exception:
+                log.info("  [%d] <could not query>", i)
+
         frame_samples = int(config.AUDIO_SAMPLE_RATE * config.AUDIO_CHUNK_MS / 1000)
+        log.info("[_init_audio_stream] Opening stream: rate=%d, chunk_ms=%d, frame_samples=%d, device_index=%s",
+                 config.AUDIO_SAMPLE_RATE, config.AUDIO_CHUNK_MS, frame_samples, config.AUDIO_DEVICE_INDEX)
+
         _stream = _pyaudio.open(
             format=pyaudio.paInt16,
             channels=1,
@@ -147,9 +194,9 @@ def _init_audio_stream():
             input_device_index=config.AUDIO_DEVICE_INDEX,
             frames_per_buffer=frame_samples,
         )
-        log.info("Audio stream opened.")
+        log.info("[_init_audio_stream] Audio stream opened OK  ── AUDIO STREAM INIT DONE ──")
     except Exception as e:
-        log.error(f"Failed to open audio stream: {e}")
+        log.error("[_init_audio_stream] Failed to open audio stream: %s", e, exc_info=True)
 
 
 def get_audio_chunk() -> bytes | None:
@@ -188,6 +235,7 @@ def is_speech(chunk: bytes) -> bool:
     global _model
 
     if _model is None:
+        log.info("[is_speech] VAD model not loaded yet — calling _init_vad()...")
         _init_vad()
 
     if _model is None or torch is None:
@@ -204,5 +252,5 @@ def is_speech(chunk: bytes) -> bool:
         return confidence > getattr(config, 'VAD_THRESHOLD', 0.5)
 
     except Exception as e:
-        log.error(f"Silero VAD error: {e}")
+        log.error("[is_speech] Silero VAD inference error: %s", e, exc_info=True)
         return False

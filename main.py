@@ -20,22 +20,6 @@ import threading
 import logging
 import os
 import sys
-import ctypes
-
-# ── Suppress C-level Warnings (ALSA & Qt Engine) ──────────────────────────────
-# Hide "QFontDatabase: Cannot find font directory"
-os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false"
-os.environ["OPENCV_LOG_LEVEL"] = "FATAL"
-
-# Hide PyAudio / ALSA "Unknown PCM" spam
-try:
-    if sys.platform.startswith("linux"):
-        asound = ctypes.cdll.LoadLibrary("libasound.so.2")
-        # Overwrite the ALSA error handler with a null pointer to silence it.
-        c_error_handler = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
-        asound.snd_lib_error_set_handler(c_error_handler(lambda file, line, function, err, fmt: None))
-except Exception:
-    pass
 
 from config import ANOMALY_MODEL_PATH, monitoring_active
 
