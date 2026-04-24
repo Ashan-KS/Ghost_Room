@@ -20,5 +20,6 @@ dependencies = [
     "opencv-python-headless>=4.8",
     "tensorflow==2.21.0",
     "ultralytics==8.4.24",
-    "boto3"
+    "boto3",
+    "RPi.GPIO==0.7.1",
 ]
