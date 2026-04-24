@@ -90,6 +90,36 @@ def _prepare_for_silero(chunk: bytes):
 
 
 
+def _load_model_with_timeout(model_path: str, timeout_s: int = 30):
+    """
+    Load a TorchScript model in a background thread with a timeout.
+    Returns the loaded model, or raises RuntimeError on timeout / failure.
+    """
+    import threading
+
+    result = [None]
+    error  = [None]
+
+    def _worker():
+        try:
+            result[0] = torch.jit.load(model_path)
+        except Exception as exc:
+            error[0] = exc
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    t.join(timeout=timeout_s)
+
+    if t.is_alive():
+        raise RuntimeError(
+            f"torch.jit.load() timed out after {timeout_s}s — "
+            f"the model was likely quantized with an incompatible backend."
+        )
+    if error[0] is not None:
+        raise error[0]
+    return result[0]
+
+
 def _init_vad():
     """Initialise PyTorch Silero VAD (INT8 optimized). Called once."""
     global _model
@@ -106,6 +136,19 @@ def _init_vad():
     except Exception as e:
         log.warning("[_init_vad] Could not query quantized backends: %s", e)
 
+    # ── Select the correct quantized engine for this platform ──────────────
+    # Models quantized with one backend (e.g. x86/fbgemm on a laptop) will
+    # hang or crash when loaded on a device that only supports a different
+    # backend (e.g. qnnpack on ARM).  Set qnnpack explicitly on Linux/ARM
+    # so that, at minimum, freshly-built models use the right backend.
+    try:
+        supported_set = {str(e) for e in torch.backends.quantized.supported_engines}
+        if sys.platform.startswith("linux") and "qnnpack" in supported_set:
+            torch.backends.quantized.engine = "qnnpack"
+            log.info("[_init_vad] Quantized engine set to qnnpack (ARM-optimized).")
+    except Exception as e:
+        log.warning("[_init_vad] Could not set qnnpack engine: %s", e)
+
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     model_candidates = _get_model_candidates(base_dir)
     log.info("[_init_vad] Model search paths: %s", model_candidates)
@@ -113,6 +156,7 @@ def _init_vad():
     model_path = next((p for p in model_candidates if os.path.exists(p)), None)
     log.info("[_init_vad] Resolved model path: %s", model_path)
 
+    # ── If no model exists, build one on-device ───────────────────────────
     if model_path is None:
         log.warning("[_init_vad] No VAD model found. Attempting to train/build automatically...")
         if _build_vad_model(base_dir):
@@ -126,9 +170,10 @@ def _init_vad():
             "Workflow is blocked until the model is built and loaded."
         )
 
+    # ── Try loading the existing model (with timeout to detect hangs) ─────
     try:
-        log.info("[_init_vad] Loading TorchScript model from %s ...", model_path)
-        _model = torch.jit.load(model_path)
+        log.info("[_init_vad] Loading TorchScript model from %s (timeout=30s) ...", model_path)
+        _model = _load_model_with_timeout(model_path, timeout_s=30)
         log.info("[_init_vad] torch.jit.load() succeeded.")
         _model.eval()
         log.info("[_init_vad] model.eval() done.")
@@ -141,14 +186,16 @@ def _init_vad():
 
     except Exception as e:
         log.error("[_init_vad] Could not load %s: %s", model_path, e, exc_info=True)
-        log.warning("[_init_vad] Retrying with a fresh build...")
+        log.warning("[_init_vad] Model may have been quantized with an incompatible backend. "
+                    "Rebuilding on this device with the correct backend...")
+        _model = None
         if _build_vad_model(base_dir):
             model_candidates = _get_model_candidates(base_dir)
             model_path = next((p for p in model_candidates if os.path.exists(p)), None)
             if model_path is not None:
                 try:
                     log.info("[_init_vad] Retrying torch.jit.load(%s)...", model_path)
-                    _model = torch.jit.load(model_path)
+                    _model = _load_model_with_timeout(model_path, timeout_s=60)
                     _model.eval()
                     log.info("[_init_vad] Retry succeeded  ── VAD INIT OK ──")
                     return
