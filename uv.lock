@@ -467,13 +467,11 @@ dependencies = [
     { name = "soundfile" },
     { name = "streamlit" },
     { name = "streamlit-autorefresh" },
-    { name = "tensorflow-cpu" },
+    { name = "tensorflow" },
     { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
     { name = "torchaudio", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torchaudio", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
-    { name = "torchcodec", version = "0.11.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torchcodec", version = "0.11.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
     { name = "ultralytics" },
     { name = "webrtcvad-wheels" },
 ]
@@ -494,10 +492,9 @@ requires-dist = [
     { name = "soundfile", specifier = ">=0.12" },
     { name = "streamlit", specifier = ">=1.55.0" },
     { name = "streamlit-autorefresh", specifier = ">=1.0.1" },
-    { name = "tensorflow-cpu", specifier = "==2.21.0" },
+    { name = "tensorflow", specifier = "==2.21.0" },
     { name = "torch", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchaudio", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "torchcodec", specifier = "==0.11.1", index = "https://download.pytorch.org/whl/cpu" },
     { name = "ultralytics", specifier = "==8.4.24" },
     { name = "webrtcvad-wheels", specifier = ">=2.0.10" },
 ]
@@ -2095,7 +2092,7 @@ wheels = [
 ]
 
 [[package]]
-name = "tensorflow-cpu"
+name = "tensorflow"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
@@ -2123,12 +2120,18 @@ dependencies = [
     { name = "wrapt" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d9/6e/134b8f01c4a978cb8aa30b776836ef6335348db73d4feb91bcc7392bf629/tensorflow_cpu-2.21.0-cp310-cp310-manylinux_2_27_x86_64.whl", hash = "sha256:d143e92f5c0661cdfa26eaca8f73cd2efd0ec53a68af8dec82f584ba8eb14b83", size = 273601549, upload-time = "2026-03-06T17:25:45.798Z" },
-    { url = "https://files.pythonhosted.org/packages/7c/81/356d3d79193694c64fdd898d9de374c60dd2d92eb7f54fc1bac408390aab/tensorflow_cpu-2.21.0-cp310-cp310-win_amd64.whl", hash = "sha256:efedd440b039df65171e85be61eea83b040025a7afc30d642763a7b902c23387", size = 350609659, upload-time = "2026-03-06T17:25:56.011Z" },
-    { url = "https://files.pythonhosted.org/packages/59/03/9a99555a762de8cd4a405efbd39a732d926d8e58791441889560b7675b3e/tensorflow_cpu-2.21.0-cp311-cp311-manylinux_2_27_x86_64.whl", hash = "sha256:2b847d217b02ee7731ed91431daf3250daa0196c3c94614d23be27232e6e5b6c", size = 273829956, upload-time = "2026-03-06T17:26:07.979Z" },
-    { url = "https://files.pythonhosted.org/packages/58/ad/288f53b8cd745b0d1c067c3ddc04936d0f0f5ca3a3882912f01c046f4cc6/tensorflow_cpu-2.21.0-cp311-cp311-win_amd64.whl", hash = "sha256:6fc992a9c8700e18c178b0525f4e7697e58fce88df0dcb95db4dd3c7ad5f4651", size = 350834051, upload-time = "2026-03-06T17:26:20.352Z" },
-    { url = "https://files.pythonhosted.org/packages/6f/07/a691049cb74276164d8449de9e25c4f51ad3111a3eba86358395d2552fc3/tensorflow_cpu-2.21.0-cp312-cp312-manylinux_2_27_x86_64.whl", hash = "sha256:dcc8afd32930e42d5296b6ee19078b773706830af4ea97fbe503b9f5e0f820cb", size = 274000871, upload-time = "2026-03-06T17:26:32.489Z" },
-    { url = "https://files.pythonhosted.org/packages/c1/db/5e8318ee782607f152bb55372a9d0a5197ddfaa63325c800dfc04f9d5e41/tensorflow_cpu-2.21.0-cp312-cp312-win_amd64.whl", hash = "sha256:13ed4af80e5c5ddd6849323abecb4804eb2770f7570b57fe20208ad1e58c5d12", size = 350945555, upload-time = "2026-03-06T17:26:42.742Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/31/14a78add50edf9b171d0edad1d50afe1672cdaa8b9b60d30716307b4f188/tensorflow-2.21.0-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:6462632889e0e9ce1455b208c87b86a8c154e899407ef7d426ef1ec71647f565", size = 223229342, upload-time = "2026-03-06T17:22:21.378Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/bc/94ab362f9309d41997d504f440c8ce3282fd0879a60b6b5fedf2605c05c7/tensorflow-2.21.0-cp310-cp310-manylinux_2_27_aarch64.whl", hash = "sha256:7c97938b25cf70c80ae8619931f85abcdee2ab2eb256c2051202edb3b89e9a5d", size = 281604511, upload-time = "2026-03-06T17:22:30.01Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/b7/df85669b3a862bc7704de206cc52801302c0441c67c3f382d621f173c93f/tensorflow-2.21.0-cp310-cp310-manylinux_2_27_x86_64.whl", hash = "sha256:77c6f298e695ea1d283cdd7d30f8d97530cc6e92c1395a9ddbab9771c99233a4", size = 572211261, upload-time = "2026-03-06T17:22:44.043Z" },
+    { url = "https://files.pythonhosted.org/packages/51/b8/a5aba377db57aa08684816cd31a04291c750cde8fa30414ad0918ca47624/tensorflow-2.21.0-cp310-cp310-win_amd64.whl", hash = "sha256:8ee4d30fca0249c441bf65e63994df848dc63c80730bd494a9aa9ce5e3f0dee5", size = 350609614, upload-time = "2026-03-06T17:23:01.596Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/76/b649b02a243c09f0348199dbd81408c1558cfbec2b6d77d820c428a95254/tensorflow-2.21.0-cp311-cp311-macosx_12_0_arm64.whl", hash = "sha256:51f46f4806139d01fc7920cc72a4c75876f80649bf40ff083ab6212ceb43ca88", size = 223405849, upload-time = "2026-03-06T17:23:12.976Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/7c/57b7ee953b40d5d837136d20af6851b20ea6ca63753fc05699e8bcfab6d5/tensorflow-2.21.0-cp311-cp311-manylinux_2_27_aarch64.whl", hash = "sha256:4b24aca16d527a3cf1c37f720c04c484c3d20f4d0fdfa98632ac8b9f3be6eb5c", size = 281828020, upload-time = "2026-03-06T17:23:21.243Z" },
+    { url = "https://files.pythonhosted.org/packages/26/a1/23b9b39c046c723db63a1c2c93397703efa3400a36f98d9c717b473aafb8/tensorflow-2.21.0-cp311-cp311-manylinux_2_27_x86_64.whl", hash = "sha256:9056fbc9ba04235810b71ae6cbd958a196e8804fb53bbcffbf3e23b56155f124", size = 572440367, upload-time = "2026-03-06T17:23:35.279Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/a2/6d7e6a738e302530586d484895de2cf3fc158ad9c73b4504a670b2956dd9/tensorflow-2.21.0-cp311-cp311-win_amd64.whl", hash = "sha256:0064a19bdc054a4b7c5e7e21cdf50ce38a114c2bada578b4f5267a37410f6784", size = 350834005, upload-time = "2026-03-06T17:23:53.021Z" },
+    { url = "https://files.pythonhosted.org/packages/39/59/27adba20bbd1088b00fc0e9232aa21493b4800af2299eb6005017a6053f4/tensorflow-2.21.0-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:56ecd7d47429acbe1df2694d50b75bf9fc3995ac92cb367cd9af6c4780ead712", size = 223488205, upload-time = "2026-03-06T17:24:03.48Z" },
+    { url = "https://files.pythonhosted.org/packages/20/a5/f139fbbd4e81a2e556170718698acf518a71a84927fa1dc1f5935b6ab3d2/tensorflow-2.21.0-cp312-cp312-manylinux_2_27_aarch64.whl", hash = "sha256:b07d15737406533898e36c7ef7944b1be18e9028dc521b9229952c537bbc5552", size = 281946471, upload-time = "2026-03-06T17:24:11.896Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/d7/6e71b4ded8ce99cd21add95611ca14af6e9ad4f2baeabdeb79a4a6b3cb1f/tensorflow-2.21.0-cp312-cp312-manylinux_2_27_x86_64.whl", hash = "sha256:b3b95643c4e70eb925839938fb35cbe142f317ec84af6844ee61513713bb13c0", size = 572611111, upload-time = "2026-03-06T17:24:26.209Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/0d/4ee4bc074597b41c9c00dc97b4418ef1eb8736fe9186ffdb3961efdfb730/tensorflow-2.21.0-cp312-cp312-win_amd64.whl", hash = "sha256:27ba0682572b1e50a0db1ee74cfb787eafcfdb1b751bbbf401fed62fe32a92e0", size = 350945509, upload-time = "2026-03-06T17:24:41.65Z" },
 ]
 
 [[package]]
@@ -2257,42 +2260,6 @@ wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torchaudio-2.11.0%2Bcpu-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:b9dd2c6ac144001dc6dac38b564c1de73ac26ef0c195d5037c4a94990b0e2b5a", upload-time = "2026-03-23T15:50:10Z" },
     { url = "https://download-r2.pytorch.org/whl/cpu/torchaudio-2.11.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:2354248848d06a9ae1e7a12165f800f0dda7df60ecac9fca892322b722b922c0", upload-time = "2026-03-23T15:50:10Z" },
     { url = "https://download-r2.pytorch.org/whl/cpu/torchaudio-2.11.0%2Bcpu-cp312-cp312-win_amd64.whl", hash = "sha256:95d517bd1a0a28dacd1c37550ced95cab64f3a7a4ef9b8219b41049388a71163", upload-time = "2026-03-23T15:50:10Z" },
-]
-
-[[package]]
-name = "torchcodec"
-version = "0.11.1"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
-resolution-markers = [
-    "python_full_version >= '3.12' and sys_platform == 'darwin'",
-    "python_full_version == '3.11.*' and sys_platform == 'darwin'",
-    "python_full_version < '3.11' and sys_platform == 'darwin'",
-]
-wheels = [
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:4b9cae80e64f15bd935f322761acabd3e6659ec87495c2c5ccc4d9f5ba94d47a", upload-time = "2026-04-14T18:05:51Z" },
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:47db9696c694c74186c5a861dbf4e5390788355f2586a1fa6af68ad56e6f1ed4", upload-time = "2026-04-14T18:05:51Z" },
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:57056e91d1d883d0fb77ca7759e304be9c0bdb4ea0e37bde5c2e361347063b8c", upload-time = "2026-04-14T18:05:51Z" },
-]
-
-[[package]]
-name = "torchcodec"
-version = "0.11.1+cpu"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
-resolution-markers = [
-    "python_full_version >= '3.12' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
-    "python_full_version < '3.11' and sys_platform == 'win32'",
-    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'win32'",
-    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'win32'",
-    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'win32'",
-]
-wheels = [
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1%2Bcpu-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:8065cd219360c6516d626409f03466d12aa5a5127fbcd941dd60c0d9587d8f12", upload-time = "2026-04-14T18:05:50Z" },
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1%2Bcpu-cp310-cp310-win_amd64.whl", hash = "sha256:9f299dfc1195a5c8876c33e9b13ff0724b3ba71d8173c023247a7b548e27c670", upload-time = "2026-04-14T18:05:51Z" },
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1%2Bcpu-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:cbfefa2850b7171210e1cc7873619bce3688762d8378f124baa7adf66d6ed6fa", upload-time = "2026-04-14T18:05:51Z" },
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1%2Bcpu-cp311-cp311-win_amd64.whl", hash = "sha256:608a0e3d35d6b5cc46fdeb7d91e6471f06fc3ae4fa35b9adb5c6f8e2e28232d1", upload-time = "2026-04-14T18:05:51Z" },
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:c6ee02d636e697c4793efc9c3f21c9439aa60c85089804f9ddd26a6dcb981396", upload-time = "2026-04-14T18:05:51Z" },
-    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.11.1%2Bcpu-cp312-cp312-win_amd64.whl", hash = "sha256:1d4e4a267987bd5f7ff6a75dacbec1630fbec18d68ffbb35c76a36a2309ffd08", upload-time = "2026-04-14T18:05:51Z" },
 ]
 
 [[package]]
