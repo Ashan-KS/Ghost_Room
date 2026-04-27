@@ -57,7 +57,7 @@ FRAME_SIZE        = (300, 300)
 AUDIO_SAMPLE_RATE = 16000   # Hz — required by webrtcvad
 AUDIO_CHUNK_MS    = 30      # ms per VAD frame (10, 20, or 30 only)
 VAD_MODE          = 2       # 0=least aggressive, 3=most aggressive
-AUDIO_DEVICE_INDEX = None   # None = system default; set to USB mic index on Pi
+AUDIO_DEVICE_INDEX = 1   # None = system default; set to USB mic index on Pi
 CALIBRATION_DURATION_S = 60    # seconds of empty-room recording for calibration
 AUDIO_LOG_STATS_INTERVAL_S = 5    # Frequency of audio loop stats logging
 

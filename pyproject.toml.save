@@ -1,6 +1,6 @@
 [project]
 name = "ghost-room"
-version = "0.1.1"
+version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -20,10 +20,14 @@ dependencies = [
     "opencv-python-headless>=4.8",
     "tensorflow==2.21.0",
     "ultralytics==8.4.24",
+<<<<<<< Updated upstream
     "boto3",
-    "RPi.GPIO==0.7.1",
     "torch",
-    "torchaudio==2.11.0",
+    "torchaudio"
+=======
+    "RPi.GPIO==0.7.1",
+    "boto3",
+>>>>>>> Stashed changes
 ]
 
 [[tool.uv.index]]
@@ -33,5 +37,4 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
-torchaudio = { index = "pytorch-cpu" }
-torchcodec = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu"
